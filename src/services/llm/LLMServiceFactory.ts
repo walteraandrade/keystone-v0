@@ -3,6 +3,7 @@ import { logger } from '../../utils/logger.js';
 import type { LLMService } from './LLMService.interface.js';
 import { OpenAILLMService } from './OpenAILLMService.js';
 import { AnthropicLLMService } from './AnthropicLLMService.js';
+import { OpenRouterLLMService } from './OpenRouterLLMService.js';
 
 export class LLMServiceFactory {
   private static instance: LLMService | null = null;
@@ -20,6 +21,10 @@ export class LLMServiceFactory {
       case 'anthropic':
         logger.info('Initializing Anthropic LLM service');
         this.instance = new AnthropicLLMService();
+        break;
+      case 'openrouter':
+        logger.info('Initializing OpenRouter LLM service');
+        this.instance = new OpenRouterLLMService();
         break;
       default:
         throw new Error(`Unsupported LLM provider: ${config.llm.provider}`);

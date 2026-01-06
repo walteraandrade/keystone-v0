@@ -6,7 +6,7 @@ Backend-only service for ingesting audit documents (FMEA, IPAR), extracting stru
 
 **Graph DB (Neo4j)**: Single source of truth for entities, relationships, versions, and conclusions
 **Vector DB (Qdrant)**: Auxiliary semantic retrieval, always references graph node IDs
-**LLM Layer**: Abstracted interface supporting OpenAI/Anthropic for extraction
+**LLM Layer**: Abstracted interface supporting OpenAI/Anthropic/OpenRouter for extraction
 **Framework**: Fastify + TypeScript, running on Bun
 
 ### Key Principles
@@ -39,9 +39,12 @@ cp .env.example .env
 ```
 
 Edit `.env` and set:
-- `LLM_PROVIDER=openai` or `anthropic`
-- `OPENAI_API_KEY=sk-...` or `ANTHROPIC_API_KEY=sk-ant-...`
-- `LLM_MODEL=gpt-4-turbo` or `claude-sonnet-4-5-20250929`
+- `LLM_PROVIDER=openai`, `anthropic`, or `openrouter`
+- API key for chosen provider:
+  - `OPENAI_API_KEY=sk-...` (OpenAI)
+  - `ANTHROPIC_API_KEY=sk-ant-...` (Anthropic)
+  - `OPENROUTER_API_KEY=sk-or-...` (OpenRouter)
+- `LLM_MODEL=gpt-4-turbo`, `claude-sonnet-4-5-20250929`, or any OpenRouter model
 
 All other defaults should work for local dev.
 
@@ -180,9 +183,10 @@ Required environment variables (see `.env.example`):
 
 ```bash
 # LLM Provider
-LLM_PROVIDER=openai          # or anthropic
+LLM_PROVIDER=openai          # or anthropic or openrouter
 OPENAI_API_KEY=sk-...        # if using OpenAI
 ANTHROPIC_API_KEY=sk-ant-... # if using Anthropic
+OPENROUTER_API_KEY=sk-or-... # if using OpenRouter
 LLM_MODEL=gpt-4-turbo
 
 # Embedding
