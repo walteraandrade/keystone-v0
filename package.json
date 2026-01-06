@@ -4,13 +4,13 @@
   "description": "Audit knowledge ingestion service with graph DB",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "test": "vitest",
+    "dev": "bun --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target node",
+    "start": "bun dist/index.js",
+    "test": "bun test",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
-    "migrate": "tsx src/services/graph/migrations/run.ts"
+    "migrate": "bun src/services/graph/migrations/run.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.9.0",
@@ -27,12 +27,11 @@
     "zod": "^3.22.0"
   },
   "devDependencies": {
+    "@types/bun": "latest",
     "@types/node": "^20.10.0",
     "@types/pdf-parse": "^1.1.4",
     "@types/uuid": "^9.0.7",
     "pino-pretty": "^10.2.0",
-    "tsx": "^4.7.0",
-    "typescript": "^5.3.0",
-    "vitest": "^1.0.0"
+    "typescript": "^5.3.0"
   }
 }
