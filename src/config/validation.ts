@@ -16,7 +16,7 @@ export const configSchema = z.object({
     collection: z.string().min(1),
   }),
   llm: z.object({
-    provider: z.enum(['openai', 'anthropic']),
+    provider: z.enum(['openai', 'anthropic', 'openrouter']),
     apiKey: z.string().min(1),
     model: z.string().min(1),
     maxTokens: z.number().int().positive().default(4000),
