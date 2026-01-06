@@ -13,7 +13,7 @@ Backend-only service for ingesting audit documents (FMEA, IPAR), extracting stru
 
 ### 1. Install dependencies
 ```bash
-npm install
+bun install
 ```
 
 ### 2. Configure environment
@@ -24,12 +24,12 @@ cp .env.example .env
 
 ### 3. Start databases
 ```bash
-npm run docker:up
+bun docker:up
 ```
 
 ### 4. Run server
 ```bash
-npm run dev
+bun dev
 ```
 
 Server will be available at `http://localhost:3000`
@@ -49,11 +49,11 @@ Retrieve audit summary from graph.
 
 ## Development
 
-- `npm run dev` - Start dev server with watch mode
-- `npm run build` - Compile TypeScript
-- `npm run test` - Run tests
-- `npm run docker:up` - Start Neo4j + Qdrant
-- `npm run docker:down` - Stop databases
+- `bun dev` - Start dev server with watch mode
+- `bun build` - Build for production
+- `bun test` - Run tests
+- `bun docker:up` - Start Neo4j + Qdrant
+- `bun docker:down` - Stop databases
 
 ## Next Steps
 
