@@ -2,6 +2,12 @@ import Fastify from 'fastify';
 import multipart from '@fastify/multipart';
 import { config } from './config/index.js';
 import { logger } from './utils/logger.js';
+import { Neo4jRepository } from './services/graph/Neo4jRepository.js';
+import { QdrantVectorStore } from './services/vector/QdrantVectorStore.js';
+import { FileSystemStorage } from './services/storage/FileSystemStorage.js';
+import { LLMServiceFactory } from './services/llm/LLMServiceFactory.js';
+import { IngestionOrchestrator } from './services/ingestion/IngestionOrchestrator.js';
+import { registerRoutes } from './api/routes.js';
 
 const fastify = Fastify({
   logger,
@@ -13,13 +19,66 @@ await fastify.register(multipart, {
   },
 });
 
+logger.info('Initializing services...');
+
+const graphRepo = new Neo4jRepository();
+await graphRepo.connect();
+
+const vectorStore = new QdrantVectorStore();
+await vectorStore.connect();
+
+const docStorage = new FileSystemStorage();
+await docStorage.init();
+
+const llmService = LLMServiceFactory.createLLMService();
+
+const orchestrator = new IngestionOrchestrator(
+  graphRepo,
+  docStorage,
+  vectorStore,
+  llmService
+);
+
+logger.info('Services initialized');
+
 fastify.get('/health', async () => {
+  const neo4jOk = await graphRepo.testConnection();
+  const qdrantOk = await vectorStore.testConnection();
+  const llmOk = await llmService.testConnection();
+
   return {
-    status: 'ok',
+    status: neo4jOk && qdrantOk && llmOk ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
     environment: config.server.nodeEnv,
+    services: {
+      neo4j: neo4jOk,
+      qdrant: qdrantOk,
+      llm: llmOk,
+    },
   };
 });
+
+await registerRoutes(fastify, orchestrator, graphRepo);
+
+fastify.setErrorHandler((error, request, reply) => {
+  logger.error({ error, url: request.url }, 'Request error');
+  reply.code(500).send({
+    error: 'INTERNAL_ERROR',
+    message: error.message,
+  });
+});
+
+const shutdown = async () => {
+  logger.info('Shutting down gracefully...');
+  await fastify.close();
+  await graphRepo.disconnect();
+  await vectorStore.disconnect();
+  logger.info('Shutdown complete');
+  process.exit(0);
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 try {
   await fastify.listen({
