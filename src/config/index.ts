@@ -1,7 +1,16 @@
 import 'dotenv/config';
+import { existsSync } from 'fs';
+import { ZodError } from 'zod';
 import { configSchema, type Config } from './validation.js';
 
 function loadConfig(): Config {
+  if (!existsSync('.env')) {
+    console.error('\n❌ Missing .env file\n');
+    console.error('Create .env from template:');
+    console.error('  cp .env.example .env\n');
+    process.exit(1);
+  }
+
   const rawConfig = {
     server: {
       nodeEnv: process.env.NODE_ENV as 'development' | 'production' | 'test' | undefined,
@@ -44,8 +53,17 @@ function loadConfig(): Config {
   try {
     return configSchema.parse(rawConfig);
   } catch (error) {
-    console.error('Configuration validation failed:', error);
-    throw new Error('Invalid configuration. Check your environment variables.');
+    if (error instanceof ZodError) {
+      console.error('\n❌ Invalid configuration:\n');
+      error.issues.forEach(issue => {
+        const field = issue.path.join('.');
+        console.error(`  ${field}: ${issue.message}`);
+      });
+      console.error('\nCheck .env file and compare with .env.example\n');
+    } else {
+      console.error('Config error:', error);
+    }
+    process.exit(1);
   }
 }
 
