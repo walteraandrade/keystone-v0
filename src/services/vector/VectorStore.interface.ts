@@ -24,4 +24,8 @@ export interface VectorStore {
   upsertDocuments(docs: VectorDocument[]): Promise<void>;
   search(query: number[], limit: number, filter?: Record<string, unknown>): Promise<VectorSearchResult[]>;
   deleteByDocumentId(documentId: string): Promise<void>;
+
+  getChunksByGraphNodeIds(graphNodeIds: string[]): Promise<VectorDocument[]>;
+  scrollAll(callback: (chunk: VectorDocument) => void): Promise<void>;
+  countByFilter(filter: Record<string, unknown>): Promise<number>;
 }

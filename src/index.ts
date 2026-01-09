@@ -4,9 +4,11 @@ import { config } from './config/index.js';
 import { logger } from './utils/logger.js';
 import { Neo4jRepository } from './services/graph/Neo4jRepository.js';
 import { QdrantVectorStore } from './services/vector/QdrantVectorStore.js';
+import { EmbeddingService } from './services/vector/EmbeddingService.js';
 import { FileSystemStorage } from './services/storage/FileSystemStorage.js';
 import { LLMServiceFactory } from './services/llm/LLMServiceFactory.js';
 import { IngestionOrchestrator } from './services/ingestion/IngestionOrchestrator.js';
+import { HybridQueryService } from './services/query/HybridQueryService.js';
 import { registerRoutes } from './api/routes.js';
 
 const fastify = Fastify({
@@ -32,11 +34,19 @@ await docStorage.init();
 
 const llmService = LLMServiceFactory.createLLMService();
 
+const embeddingService = new EmbeddingService();
+
 const orchestrator = new IngestionOrchestrator(
   graphRepo,
   docStorage,
   vectorStore,
   llmService
+);
+
+const hybridQuery = new HybridQueryService(
+  graphRepo,
+  vectorStore,
+  embeddingService
 );
 
 logger.info('Services initialized');
@@ -58,7 +68,7 @@ fastify.get('/health', async () => {
   };
 });
 
-await registerRoutes(fastify, orchestrator, graphRepo);
+await registerRoutes(fastify, orchestrator, graphRepo, hybridQuery);
 
 fastify.setErrorHandler((error, request, reply) => {
   logger.error({ error, url: request.url }, 'Request error');

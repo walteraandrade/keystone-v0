@@ -320,6 +320,111 @@ export class Neo4jRepository implements GraphRepository {
     }
   }
 
+  async queryByPattern(params: {
+    nodeLabel: string;
+    properties?: Record<string, unknown>;
+    limit?: number;
+  }): Promise<Entity[]> {
+    const session = this.getSession();
+    try {
+      const { nodeLabel, properties = {}, limit = 20 } = params;
+
+      const whereClause = Object.keys(properties).length > 0
+        ? 'WHERE ' + Object.keys(properties).map(key => `n.${key} = $${key}`).join(' AND ')
+        : '';
+
+      const query = `
+        MATCH (n:${nodeLabel})
+        ${whereClause}
+        RETURN n
+        LIMIT $limit
+      `;
+
+      const result = await session.run(query, { ...properties, limit: neo4j.int(limit) });
+      return result.records.map(record => record.get('n').properties as Entity);
+    } catch (error) {
+      logger.error({ params, error }, 'Failed to query by pattern');
+      throw new GraphPersistenceError('Pattern query failed', error);
+    } finally {
+      await session.close();
+    }
+  }
+
+  async getEntitiesByIds(ids: string[]): Promise<Entity[]> {
+    const session = this.getSession();
+    try {
+      const query = `
+        MATCH (n)
+        WHERE n.id IN $ids
+        RETURN n
+      `;
+
+      const result = await session.run(query, { ids });
+      return result.records.map(record => record.get('n').properties as Entity);
+    } catch (error) {
+      logger.error({ count: ids.length, error }, 'Failed to get entities by IDs');
+      throw new GraphPersistenceError('Batch entity retrieval failed', error);
+    } finally {
+      await session.close();
+    }
+  }
+
+  async expandRelationships(entityIds: string[], relationshipTypes?: RelationshipType[]): Promise<{
+    entities: Entity[];
+    relationships: Relationship[];
+  }> {
+    const session = this.getSession();
+    try {
+      const typeFilter = relationshipTypes && relationshipTypes.length > 0
+        ? relationshipTypes.map(t => `type(r) = '${t}'`).join(' OR ')
+        : '';
+
+      const whereClause = typeFilter ? `WHERE ${typeFilter}` : '';
+
+      const query = `
+        MATCH (source)
+        WHERE source.id IN $entityIds
+        MATCH (source)-[r]-(target)
+        ${whereClause}
+        RETURN source, r, target
+      `;
+
+      const result = await session.run(query, { entityIds });
+
+      const entities = new Map<string, Entity>();
+      const relationships: Relationship[] = [];
+
+      for (const record of result.records) {
+        const source = record.get('source').properties;
+        const target = record.get('target').properties;
+        const rel = record.get('r').properties;
+        const relType = record.get('r').type;
+
+        entities.set(source.id, source as Entity);
+        entities.set(target.id, target as Entity);
+
+        relationships.push({
+          from: source.id,
+          to: target.id,
+          type: relType as RelationshipType,
+          confidence: rel.confidence,
+          sourceReference: rel.sourceReference,
+          properties: rel,
+        });
+      }
+
+      return {
+        entities: Array.from(entities.values()),
+        relationships,
+      };
+    } catch (error) {
+      logger.error({ entityCount: entityIds.length, error }, 'Failed to expand relationships');
+      throw new GraphPersistenceError('Relationship expansion failed', error);
+    } finally {
+      await session.close();
+    }
+  }
+
   async beginTransaction(): Promise<Transaction> {
     if (!this.driver) {
       throw new GraphPersistenceError('Neo4j driver not initialized');

@@ -128,4 +128,116 @@ export class QdrantVectorStore implements VectorStore {
       throw new GraphPersistenceError('Vector deletion failed', error);
     }
   }
+
+  async getChunksByGraphNodeIds(graphNodeIds: string[]): Promise<VectorDocument[]> {
+    const client = this.getClient();
+    try {
+      const chunks: VectorDocument[] = [];
+
+      for (const nodeId of graphNodeIds) {
+        const response = await client.scroll(this.collectionName, {
+          filter: {
+            must: [
+              {
+                key: 'graphNodeId',
+                match: { value: nodeId },
+              },
+            ],
+          },
+          with_payload: true,
+          with_vector: true,
+          limit: 100,
+        });
+
+        for (const point of response.points) {
+          chunks.push({
+            id: point.id as string,
+            vector: point.vector as number[],
+            payload: point.payload as VectorDocument['payload'],
+          });
+        }
+      }
+
+      logger.debug({ nodeCount: graphNodeIds.length, chunkCount: chunks.length }, 'Retrieved chunks by graph node IDs');
+      return chunks;
+    } catch (error) {
+      logger.error({ error, nodeCount: graphNodeIds.length }, 'Failed to get chunks by graph node IDs');
+      throw new GraphPersistenceError('Vector retrieval failed', error);
+    }
+  }
+
+  async scrollAll(callback: (chunk: VectorDocument) => void): Promise<void> {
+    const client = this.getClient();
+    try {
+      let offset: string | number | undefined = undefined;
+      let hasMore = true;
+      let totalProcessed = 0;
+
+      while (hasMore) {
+        const response = await client.scroll(this.collectionName, {
+          offset,
+          limit: 100,
+          with_payload: true,
+          with_vector: true,
+        });
+
+        for (const point of response.points) {
+          callback({
+            id: point.id as string,
+            vector: point.vector as number[],
+            payload: point.payload as VectorDocument['payload'],
+          });
+          totalProcessed++;
+        }
+
+        offset = response.next_page_offset;
+        hasMore = offset !== null && offset !== undefined;
+      }
+
+      logger.debug({ totalProcessed }, 'Scrolled all chunks');
+    } catch (error) {
+      logger.error({ error }, 'Failed to scroll all chunks');
+      throw new GraphPersistenceError('Vector scroll failed', error);
+    }
+  }
+
+  async countByFilter(filter: Record<string, unknown>): Promise<number> {
+    const client = this.getClient();
+    try {
+      const qdrantFilter = {
+        must: Object.entries(filter).map(([key, value]) => ({
+          key,
+          match: { value },
+        })),
+      };
+
+      const response = await client.scroll(this.collectionName, {
+        filter: qdrantFilter,
+        limit: 1,
+        with_payload: false,
+        with_vector: false,
+      });
+
+      let count = response.points.length;
+      let offset = response.next_page_offset;
+
+      while (offset !== null && offset !== undefined) {
+        const nextResponse = await client.scroll(this.collectionName, {
+          offset,
+          filter: qdrantFilter,
+          limit: 100,
+          with_payload: false,
+          with_vector: false,
+        });
+        count += nextResponse.points.length;
+        offset = nextResponse.next_page_offset;
+      }
+
+      logger.debug({ filter, count }, 'Counted chunks by filter');
+      return count;
+    } catch (error) {
+      logger.error({ error, filter }, 'Failed to count by filter');
+      throw new GraphPersistenceError('Vector count failed', error);
+    }
+  }
 }

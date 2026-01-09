@@ -37,7 +37,10 @@ function loadConfig(): Config {
       maxTokens: process.env.LLM_MAX_TOKENS ? parseInt(process.env.LLM_MAX_TOKENS, 10) : undefined,
     },
     embedding: {
-      model: process.env.EMBEDDING_MODEL || '',
+      endpoint: process.env.AZURE_OPENAI_ENDPOINT || '',
+      apiKey: process.env.AZURE_OPENAI_API_KEY || '',
+      apiVersion: process.env.AZURE_OPENAI_API_VERSION || '',
+      deployment: process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || '',
       dimension: process.env.EMBEDDING_DIMENSION ? parseInt(process.env.EMBEDDING_DIMENSION, 10) : 1536,
     },
     storage: {
@@ -49,6 +52,10 @@ function loadConfig(): Config {
         ? parseFloat(process.env.MIN_CONFIDENCE_THRESHOLD)
         : undefined,
       enableDeduplication: process.env.ENABLE_DEDUPLICATION !== 'false',
+    },
+    chunking: {
+      maxTokens: process.env.CHUNK_MAX_TOKENS ? parseInt(process.env.CHUNK_MAX_TOKENS, 10) : undefined,
+      overlapTokens: process.env.CHUNK_OVERLAP_TOKENS ? parseInt(process.env.CHUNK_OVERLAP_TOKENS, 10) : undefined,
     },
   };
 

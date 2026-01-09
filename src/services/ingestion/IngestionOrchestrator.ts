@@ -9,7 +9,7 @@ import { DocumentProcessor } from './DocumentProcessor.js';
 import { ValidationService } from './ValidationService.js';
 import { DeduplicationService } from './DeduplicationService.js';
 import { EmbeddingService } from '../vector/EmbeddingService.js';
-import { ChunkingService } from '../vector/ChunkingService.js';
+import { SemanticChunker } from '../chunking/SemanticChunker.js';
 import type { Document } from '../../domain/entities/Document.js';
 import { RelationshipType } from '../../domain/relationships/types.js';
 
@@ -27,7 +27,7 @@ export class IngestionOrchestrator {
   private validationService: ValidationService;
   private deduplicationService: DeduplicationService;
   private embeddingService: EmbeddingService;
-  private chunkingService: ChunkingService;
+  private semanticChunker: SemanticChunker;
 
   constructor(
     private graphRepo: GraphRepository,
@@ -39,7 +39,7 @@ export class IngestionOrchestrator {
     this.validationService = new ValidationService();
     this.deduplicationService = new DeduplicationService(graphRepo);
     this.embeddingService = new EmbeddingService();
-    this.chunkingService = new ChunkingService();
+    this.semanticChunker = new SemanticChunker();
   }
 
   async ingest(filePath: string, fileName: string, metadata: Record<string, unknown> = {}): Promise<IngestionResult> {
@@ -87,10 +87,11 @@ export class IngestionOrchestrator {
       logger.debug({ documentId }, 'Validated extraction');
 
       const tx = await this.graphRepo.beginTransaction();
+      let entityCounts: Record<string, number> = {};
+      let relationshipCount = 0;
 
       try {
         const entityMap = new Map<string, string>();
-        const entityCounts: Record<string, number> = {};
 
         for (const entityCandidate of extraction.entities) {
           const result = await this.deduplicationService.deduplicateEntity(
@@ -105,7 +106,6 @@ export class IngestionOrchestrator {
           entityCounts[entityCandidate.entityType] = (entityCounts[entityCandidate.entityType] || 0) + 1;
         }
 
-        let relationshipCount = 0;
         for (const relCandidate of extraction.relationships) {
           const fromId = entityMap.get(relCandidate.from);
           const toId = entityMap.get(relCandidate.to);
@@ -127,39 +127,75 @@ export class IngestionOrchestrator {
 
         await this.graphRepo.commit(tx);
         logger.debug({ documentId }, 'Committed graph transaction');
+      } catch (error) {
+        await this.graphRepo.rollback(tx);
+        throw error;
+      }
 
-        const chunks = this.chunkingService.chunkText(processed.content);
-        const embeddings = await this.embeddingService.generateEmbeddings(chunks.map(c => c.text));
+      try {
+        const allChunks = this.semanticChunker.chunk(processed.content, processed.type);
+        const validChunks = allChunks.filter(c => c.text && c.text.trim().length > 0);
 
-        const vectorDocs = chunks.map((chunk, idx) => ({
-          id: generateId('vec'),
+        if (validChunks.length === 0) {
+          logger.warn({ documentId }, 'No valid chunks to embed, skipping vector storage');
+          return {
+            documentId,
+            status: 'processed',
+            entitiesCreated: entityCounts,
+            relationshipsCreated: relationshipCount,
+            processingTime: `${((Date.now() - startTime) / 1000).toFixed(1)}s`,
+          };
+        }
+
+        if (validChunks.length !== allChunks.length) {
+          logger.warn(
+            { documentId, total: allChunks.length, valid: validChunks.length },
+            'Filtered out empty chunks before embedding'
+          );
+        }
+
+        const embeddings = await this.embeddingService.generateEmbeddings(validChunks.map(c => c.text));
+
+        if (embeddings.length !== validChunks.length) {
+          throw new Error(`Embedding count mismatch: ${embeddings.length} embeddings for ${validChunks.length} chunks`);
+        }
+
+        const vectorDocs = validChunks.map((chunk, idx) => ({
+          id: generateId(),
           vector: embeddings[idx],
           payload: {
             graphNodeId: documentId,
             documentId,
             chunkText: chunk.text,
             chunkIndex: chunk.index,
-            metadata: chunk.metadata,
+            semanticType: chunk.semanticType,
+            context: chunk.context,
+            tokens: chunk.tokens,
+            isOversized: chunk.metadata.isOversized,
+            splitDepth: chunk.metadata.splitDepth,
+            metadata: {
+              startChar: chunk.metadata.startChar,
+              endChar: chunk.metadata.endChar,
+            },
           },
         }));
 
         await this.vectorStore.upsertDocuments(vectorDocs);
         logger.debug({ documentId, vectorCount: vectorDocs.length }, 'Stored vectors');
-
-        const processingTime = `${((Date.now() - startTime) / 1000).toFixed(1)}s`;
-        logger.info({ documentId, processingTime, entityCounts, relationshipCount }, 'Ingestion complete');
-
-        return {
-          documentId,
-          status: 'processed',
-          entitiesCreated: entityCounts,
-          relationshipsCreated: relationshipCount,
-          processingTime,
-        };
       } catch (error) {
-        await this.graphRepo.rollback(tx);
-        throw error;
+        logger.error({ documentId, error }, 'Embedding generation failed, continuing without vectors');
       }
+
+      const processingTime = `${((Date.now() - startTime) / 1000).toFixed(1)}s`;
+      logger.info({ documentId, processingTime, entityCounts, relationshipCount }, 'Ingestion complete');
+
+      return {
+        documentId,
+        status: 'processed',
+        entitiesCreated: entityCounts,
+        relationshipsCreated: relationshipCount,
+        processingTime,
+      };
     } catch (error) {
       logger.error({ documentId, error }, 'Ingestion failed');
 
