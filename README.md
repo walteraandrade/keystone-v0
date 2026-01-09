@@ -1,20 +1,24 @@
-# Keystone Audit Ingestion Service v0
+# Keystone Audit Knowledge Graph v0
 
-Backend-only service for ingesting audit documents (FMEA, IPAR), extracting structured knowledge via AI agents, and persisting to graph database.
+Ingest audit documents (FMEA, IPAR), extract structured knowledge via LLM, store in graph + vectors. Query via hybrid semantic + graph traversal.
 
 ## Architecture
 
-**Graph DB (Neo4j)**: Single source of truth for entities, relationships, versions, and conclusions
-**Vector DB (Qdrant)**: Auxiliary semantic retrieval, always references graph node IDs
-**LLM Layer**: Abstracted interface supporting OpenAI/Anthropic/OpenRouter for extraction
-**Framework**: Fastify + TypeScript, running on Bun
+**Graph (Neo4j)** stores authoritative entities/relationships with provenance → **Vectors (Qdrant)** enable semantic retrieval of ontology-aware chunks (FMEA rows, findings, sections) → **Hybrid queries** combine similarity search with graph traversal to surface insights.
+
+- **Graph DB (Neo4j)**: Source of truth for entities, relationships, versions
+- **Vector DB (Qdrant)**: Semantic search over chunked content, references graph node IDs
+- **LLM Layer**: OpenAI/Anthropic/OpenRouter for extraction
+- **Chunking**: Semantic-first (FMEA rows, audit sections), token-enforced (8192 limit)
+- **Framework**: Fastify + TypeScript on Bun
 
 ### Key Principles
 
-1. **Graph is authoritative** - All entities and relationships live in Neo4j
-2. **Vectors are disposable** - Qdrant stores embeddings that always reference graph nodes
-3. **Immutable entities** - Changes create new versions linked via SUPERSEDES relationships
-4. **Lossless ingestion** - Original documents preserved, extraction traceable to source sections
+1. **Graph is authoritative** - Entities/relationships in Neo4j, not embeddings
+2. **Vectors are disposable** - Qdrant references graph nodes via `graphNodeId`
+3. **Immutable entities** - Versions linked via SUPERSEDES relationships
+4. **Semantic chunking** - Document ontology over typography (FMEA rows > paragraphs)
+5. **Lossless ingestion** - Documents preserved, extraction traceable to source
 
 ## Quick Start
 
@@ -60,23 +64,23 @@ This creates constraints and indexes for deduplication and performance.
 bun dev
 ```
 
-Server runs at `http://localhost:3000`
+Server runs at `http://localhost:3003`
 
-## API Usage
+## API Endpoints
 
 ### Health Check
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:3003/health
 ```
 
-Returns service status for Neo4j, Qdrant, and LLM.
+Returns Neo4j, Qdrant, and LLM status.
 
 ### Ingest Document
 
-Upload FMEA or IPAR document for extraction:
+Upload FMEA or IPAR for extraction:
 
 ```bash
-curl -X POST http://localhost:3000/ingest \
+curl -X POST http://localhost:3003/ingest \
   -F "file=@FMEA_SCHUMAG.xlsx" \
   -F 'metadata={"auditId":"aud-001","processName":"Manufacturing Line A"}'
 ```
@@ -108,38 +112,72 @@ curl -X POST http://localhost:3000/ingest \
 }
 ```
 
-### Get Audit Summary
-
-Retrieve audit summary from graph:
+### Audit Summary
 
 ```bash
-curl http://localhost:3000/audit/aud-001/summary
+curl http://localhost:3003/audit/aud-001/summary
 ```
 
-**Response (200)**:
-```json
-{
-  "auditId": "aud-001",
-  "process": {
-    "id": "proc-456",
-    "name": "Manufacturing Line A",
-    "version": "2.1"
-  },
-  "documents": [
-    {
-      "id": "doc-abc-123",
-      "documentType": "fmea",
-      "uploadedAt": "2026-01-06T10:30:00Z"
-    }
-  ],
-  "statistics": {
-    "totalFailureModes": 12,
-    "highRisks": 3,
-    "controlsImplemented": 15,
-    "findings": 4
-  }
-}
+Returns process, documents, statistics (failure modes, risks, controls, findings).
+
+### Query: Semantic Search → Graph Expansion
+
+Find similar content, expand via graph relationships:
+
+```bash
+curl -X POST http://localhost:3003/query/semantic \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "query": "medição incorreta das barras",
+    "limit": 5,
+    "expandDepth": 1,
+    "filters": {"semanticType": ["fmea_row_group"]}
+  }'
 ```
+
+Returns chunks + entities + related entities (FailureMode → Risk, Control).
+
+### Query: Entity Context
+
+Get entity + all chunks mentioning it + provenance:
+
+```bash
+curl http://localhost:3003/entities/{entityId}/context?includeRelationships=true
+```
+
+Returns entity + chunks with source references + relationships.
+
+### Query: Ontology Analytics
+
+Aggregate chunks by semanticType/context/documentId:
+
+```bash
+curl 'http://localhost:3003/analytics/ontology?groupBy=semanticType&includeGraphStats=true'
+```
+
+Returns chunk counts, avg tokens, graph entity counts, high-risk items.
+
+### Query: Graph Pattern
+
+Query graph patterns, optionally fetch vector context:
+
+```bash
+curl -X POST http://localhost:3003/query/graph \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "entityType": "FailureMode",
+    "filters": {"rpn": {">": 100}},
+    "relationships": [{
+      "type": "IMPLIES",
+      "direction": "out",
+      "targetType": "Risk"
+    }],
+    "includeVectorContext": true,
+    "limit": 10
+  }'
+```
+
+Returns entities + relationships + optional chunks.
 
 ## Domain Model
 
@@ -235,10 +273,21 @@ bun migrate      # Run Neo4j constraints migration
    - Create relationships with confidence scores
    - Update Document status: PROCESSED
 8. **Commit transaction**
-9. Chunk text → generate embeddings → store vectors
-10. Return result
+9. **Semantic chunking** (2-phase):
+   - Phase 1: Segment by document ontology (FMEA rows, audit findings, sections)
+   - Phase 2: Token enforcement with tiktoken (8192 limit, recursive split with overlap)
+10. Generate embeddings → store vectors with `graphNodeId` reference
+11. Return result
 
-**Rollback on failure**: Mark Document as FAILED, preserve error + AI output.
+**Rollback on failure**: Document marked FAILED, error + AI output preserved.
+
+### Chunking Strategies
+
+- **FMEA**: CSV parsing, group by process, preserve sheet context
+- **IPAR**: Section-based segmentation (findings, controls, recommendations)
+- **Generic**: Paragraph-based with heading context
+
+All chunks include: `semanticType`, `context`, `tokens`, `sourceReference`.
 
 ## Troubleshooting
 
@@ -290,18 +339,35 @@ bun migrate
 ✅ Entity evolution fully traceable (SUPERSEDES graph)
 ✅ New document types addable without refactoring
 
+## Design Patterns
+
+Codebase uses established patterns for clean architecture:
+
+- **Strategy**: Document segmentation algorithms (FMEA, IPAR, generic)
+- **Factory**: LLM provider selection (OpenAI/Anthropic/OpenRouter)
+- **Repository**: Graph + vector data access abstraction
+- **Facade**: Hybrid query coordination (graph + vectors + embeddings)
+- **Dependency Injection**: Constructor-based wiring in `index.ts`
+
+[📖 Read design patterns guide →](DESIGN_PATTERNS.md)
+
 ## Project Structure
 
 ```
 src/
-├── api/              # Fastify routes and handlers
-├── config/           # Environment config with Zod validation
-├── domain/           # Entity and relationship types
+├── api/
+│   ├── routes.ts         # Route registration
+│   ├── handlers/         # Request handlers (ingest, query, audit)
+│   └── schemas/          # JSON schemas (validation)
+├── config/               # Environment config with Zod validation
+├── domain/               # Entity and relationship types
 ├── services/
-│   ├── graph/        # Neo4j repository
-│   ├── vector/       # Qdrant + embeddings
-│   ├── storage/      # Document storage
-│   ├── llm/          # LLM abstraction + prompts
-│   └── ingestion/    # Pipeline orchestration
-└── utils/            # Logger, errors, UUID
+│   ├── graph/            # Neo4j repository (CRUD, patterns, expansion) [Repository Pattern]
+│   ├── vector/           # Qdrant + embeddings (search, scroll, batch) [Repository Pattern]
+│   ├── storage/          # Document file storage
+│   ├── llm/              # LLM abstraction (OpenAI/Anthropic/OpenRouter) [Factory Pattern]
+│   ├── chunking/         # Semantic chunking (strategies, token splitting) [Strategy Pattern]
+│   ├── query/            # Hybrid query service (4 patterns) [Facade Pattern]
+│   └── ingestion/        # Pipeline orchestration
+└── utils/                # Logger, errors, UUID
 ```

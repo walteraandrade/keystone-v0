@@ -22,7 +22,10 @@ export const configSchema = z.object({
     maxTokens: z.number().int().positive().default(4000),
   }),
   embedding: z.object({
-    model: z.string().min(1),
+    endpoint: z.string().url(),
+    apiKey: z.string().min(1),
+    apiVersion: z.string().min(1),
+    deployment: z.string().min(1),
     dimension: z.number().int().positive(),
   }),
   storage: z.object({
@@ -32,6 +35,10 @@ export const configSchema = z.object({
   extraction: z.object({
     minConfidenceThreshold: z.number().min(0).max(1).default(0.7),
     enableDeduplication: z.boolean().default(true),
+  }),
+  chunking: z.object({
+    maxTokens: z.number().int().positive().default(8192),
+    overlapTokens: z.number().int().positive().default(100),
   }),
 });
 

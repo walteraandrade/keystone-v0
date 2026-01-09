@@ -53,6 +53,19 @@ export interface GraphRepository {
 
   getAuditSummary(auditId: string): Promise<AuditSummary>;
 
+  queryByPattern(params: {
+    nodeLabel: string;
+    properties?: Record<string, unknown>;
+    limit?: number;
+  }): Promise<Entity[]>;
+
+  getEntitiesByIds(ids: string[]): Promise<Entity[]>;
+
+  expandRelationships(entityIds: string[], relationshipTypes?: RelationshipType[]): Promise<{
+    entities: Entity[];
+    relationships: Relationship[];
+  }>;
+
   beginTransaction(): Promise<Transaction>;
   commit(tx: Transaction): Promise<void>;
   rollback(tx: Transaction): Promise<void>;
