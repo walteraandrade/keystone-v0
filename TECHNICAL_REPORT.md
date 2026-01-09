@@ -5,7 +5,15 @@
 **Ingestion**: FMEA/IPAR documents → LLM extraction → graph entities/relationships + semantic chunks → 8192 token limit enforcement
 
 **Storage**:
-- **Neo4j**: Entities (Process, FailureMode, Risk, Control, Finding, Requirement, Audit, Document), relationships with confidence scores, immutable versioning (SUPERSEDES)
+- **Neo4j**: Entities with confidence scores, immutable versioning (SUPERSEDES):
+  - **Process**: Manufacturing/business process being evaluated. Deduplication key: name+version. Root entity for audit scope.
+  - **FailureMode**: Potential failure identified in FMEA. Deduplication key: code. Core entity linking to risks and controls.
+  - **Risk**: Consequence of failure (severity, occurrence, detectability). Implied by FailureModes. Quantifies impact.
+  - **Control**: Mitigation measure preventing/detecting failures. Mitigates FailureModes. Enables risk reduction tracking.
+  - **Finding**: Audit observation from inspection. Addresses FailureModes, references Controls. Drives corrective actions.
+  - **Requirement**: Regulatory/compliance standard (ISO, FDA). Failed/satisfied by Documents. Ensures compliance mapping.
+  - **Audit**: Audit event evaluating a Process. Uses Documents. Top-level entity for audit lifecycle.
+  - **Document**: Source file (FMEA, IPAR). Deduplication key: contentHash. Preserves provenance, enables traceability.
 - **Qdrant**: 126 chunks, metadata (semanticType, context, graphNodeId, tokens), text-embedding-3-small (1536 dims)
 
 **Query**: 4 hybrid patterns combining graph traversal + vector similarity
