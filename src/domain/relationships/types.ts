@@ -11,7 +11,11 @@ export enum RelationshipType {
   SATISFIES = 'SATISFIES',
   FAILS_TO_SATISFY = 'FAILS_TO_SATISFY',
   SUPERSEDES = 'SUPERSEDES',
+  IMPLEMENTS = 'IMPLEMENTS',
+  APPLIED_IN = 'APPLIED_IN',
 }
+
+export type RelationshipStatus = 'SUGGESTED' | 'CONFIRMED';
 
 export interface BaseRelationship {
   from: string;
@@ -20,6 +24,7 @@ export interface BaseRelationship {
   confidence: number;
   sourceReference?: SourceReference;
   properties?: Record<string, unknown>;
+  status?: RelationshipStatus;
 }
 
 export interface EvaluatesRelationship extends BaseRelationship {
@@ -97,6 +102,20 @@ export interface SupersedesRelationship extends BaseRelationship {
   };
 }
 
+export interface ImplementsRelationship extends BaseRelationship {
+  type: RelationshipType.IMPLEMENTS;
+  properties?: {
+    coverage?: string;
+  };
+}
+
+export interface AppliedInRelationship extends BaseRelationship {
+  type: RelationshipType.APPLIED_IN;
+  properties?: {
+    context?: string;
+  };
+}
+
 export type Relationship =
   | EvaluatesRelationship
   | UsesRelationship
@@ -107,4 +126,6 @@ export type Relationship =
   | ReferencesRelationship
   | SatisfiesRelationship
   | FailsToSatisfyRelationship
-  | SupersedesRelationship;
+  | SupersedesRelationship
+  | ImplementsRelationship
+  | AppliedInRelationship;

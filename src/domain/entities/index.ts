@@ -8,6 +8,7 @@ export * from './Risk.js';
 export * from './Control.js';
 export * from './Finding.js';
 export * from './Requirement.js';
+export * from './ProcedureStep.js'; // Entity union member
 
 export type Entity =
   | import('./Process.js').Process
@@ -17,4 +18,5 @@ export type Entity =
   | import('./Risk.js').Risk
   | import('./Control.js').Control
   | import('./Finding.js').Finding
-  | import('./Requirement.js').Requirement;
+  | import('./Requirement.js').Requirement
+  | import('./ProcedureStep.js').ProcedureStep;

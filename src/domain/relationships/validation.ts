@@ -22,6 +22,9 @@ export const relationshipRules: RelationshipRule[] = [
   { from: 'Process', to: 'Process', allowedTypes: [RelationshipType.SUPERSEDES] },
   { from: 'Risk', to: 'Risk', allowedTypes: [RelationshipType.SUPERSEDES] },
   { from: 'Requirement', to: 'Requirement', allowedTypes: [RelationshipType.SUPERSEDES] },
+  { from: 'ProcedureStep', to: 'Control', allowedTypes: [RelationshipType.IMPLEMENTS] },
+  { from: 'Control', to: 'ProcedureStep', allowedTypes: [RelationshipType.APPLIED_IN] },
+  { from: 'ProcedureStep', to: 'ProcedureStep', allowedTypes: [RelationshipType.SUPERSEDES] },
 ];
 
 export function validateRelationship(fromType: string, toType: string, relType: RelationshipType): boolean {
