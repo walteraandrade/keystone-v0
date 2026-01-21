@@ -83,4 +83,6 @@ export interface GraphRepository {
   beginTransaction(): Promise<Transaction>;
   commit(tx: Transaction): Promise<void>;
   rollback(tx: Transaction): Promise<void>;
+
+  deleteFailedDocumentsOlderThan(hours: number): Promise<number>;
 }

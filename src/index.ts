@@ -9,6 +9,9 @@ import { FileSystemStorage } from './services/storage/FileSystemStorage.js';
 import { LLMServiceFactory } from './services/llm/LLMServiceFactory.js';
 import { IngestionOrchestrator } from './services/ingestion/IngestionOrchestrator.js';
 import { HybridQueryService } from './services/query/HybridQueryService.js';
+import { BunSQLiteService } from './services/extraction/BunSQLiteService.js';
+import { CleanupService } from './services/ingestion/CleanupService.js';
+import { CoverageQueryRegistry } from './services/query/CoverageQueryRegistry.js';
 import { registerRoutes } from './api/routes.js';
 
 const fastify = Fastify({
@@ -36,11 +39,16 @@ const llmService = LLMServiceFactory.createLLMService();
 
 const embeddingService = new EmbeddingService();
 
+const extractionLogger = config.extractionLog.enabled
+  ? new BunSQLiteService(config.extractionLog.dbPath)
+  : undefined;
+
 const orchestrator = new IngestionOrchestrator(
   graphRepo,
   docStorage,
   vectorStore,
-  llmService
+  llmService,
+  extractionLogger
 );
 
 const hybridQuery = new HybridQueryService(
@@ -49,26 +57,38 @@ const hybridQuery = new HybridQueryService(
   embeddingService
 );
 
+const cleanupService = new CleanupService(graphRepo);
+
+const coverageRegistry = new CoverageQueryRegistry(graphRepo as any);
+
 logger.info('Services initialized');
+
+if (config.cleanup.enabled) {
+  logger.info('Running startup cleanup...');
+  const deleted = await cleanupService.cleanupFailedDocuments(config.cleanup.olderThanHours);
+  logger.info({ deleted }, 'Startup cleanup complete');
+}
 
 fastify.get('/health', async () => {
   const neo4jOk = await graphRepo.testConnection();
   const qdrantOk = await vectorStore.testConnection();
   const llmOk = await llmService.testConnection();
+  const sqliteOk = extractionLogger ? extractionLogger.testConnection() : true;
 
   return {
-    status: neo4jOk && qdrantOk && llmOk ? 'ok' : 'degraded',
+    status: neo4jOk && qdrantOk && llmOk && sqliteOk ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
     environment: config.server.nodeEnv,
     services: {
       neo4j: neo4jOk,
       qdrant: qdrantOk,
       llm: llmOk,
+      sqlite: sqliteOk,
     },
   };
 });
 
-await registerRoutes(fastify as any, orchestrator, graphRepo, hybridQuery);
+await registerRoutes(fastify as any, orchestrator, graphRepo, hybridQuery, cleanupService, coverageRegistry);
 
 fastify.setErrorHandler((error, request, reply) => {
   logger.error({ error, url: request.url }, 'Request error');
@@ -83,6 +103,7 @@ const shutdown = async () => {
   await fastify.close();
   await graphRepo.disconnect();
   await vectorStore.disconnect();
+  extractionLogger?.close();
   logger.info('Shutdown complete');
   process.exit(0);
 };

@@ -5,6 +5,7 @@ import type { GraphRepository } from '../graph/GraphRepository.interface.js';
 import type { DocumentStorage } from '../storage/DocumentStorage.interface.js';
 import type { VectorStore } from '../vector/VectorStore.interface.js';
 import type { LLMService } from '../llm/LLMService.interface.js';
+import type { BunSQLiteService } from '../extraction/BunSQLiteService.js';
 import { DocumentProcessor } from './DocumentProcessor.js';
 import { ValidationService } from './ValidationService.js';
 import { DeduplicationService } from './DeduplicationService.js';
@@ -33,7 +34,8 @@ export class IngestionOrchestrator {
     private graphRepo: GraphRepository,
     private docStorage: DocumentStorage,
     private vectorStore: VectorStore,
-    private llmService: LLMService
+    private llmService: LLMService,
+    private extractionLogger?: BunSQLiteService
   ) {
     this.docProcessor = new DocumentProcessor();
     this.validationService = new ValidationService();
@@ -85,6 +87,23 @@ export class IngestionOrchestrator {
 
       this.validationService.validateExtraction(extraction);
       logger.info({ documentId }, 'Validation complete');
+
+      if (this.extractionLogger) {
+        const avgConfidence = extraction.entities.length > 0
+          ? extraction.entities.reduce((sum, e) => sum + e.confidence, 0) / extraction.entities.length
+          : 0;
+        this.extractionLogger.log({
+          documentId,
+          model: extraction.metadata.modelUsed,
+          timestamp: new Date().toISOString(),
+          rawOutput: JSON.stringify(extraction),
+          tokensUsed: extraction.metadata.tokensUsed || 0,
+          confidenceAvg: avgConfidence,
+          entityCount: extraction.entities.length,
+          relationshipCount: extraction.relationships.length,
+          status: 'SUCCESS',
+        });
+      }
 
       let entityCounts: Record<string, number> = {};
       let relationshipCount = 0;

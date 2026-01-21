@@ -752,4 +752,42 @@ export class Neo4jRepository implements GraphRepository {
       throw new GraphPersistenceError('Transaction rollback failed', error);
     }
   }
+
+  async deleteFailedDocumentsOlderThan(hours: number): Promise<number> {
+    const session = this.getSession();
+    try {
+      const threshold = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+      const result = await this.runWithTimeout(session, `
+        MATCH (d:Document {status: 'FAILED'})
+        WHERE d.updatedAt < $threshold
+        OPTIONAL MATCH (ex:Extraction)-[:SOURCED_FROM]->(d)
+        DETACH DELETE ex, d
+        RETURN count(DISTINCT d) as deleted
+      `, { threshold });
+      return result.records[0]?.get('deleted')?.toNumber() || 0;
+    } finally {
+      await session.close();
+    }
+  }
+
+  async runCoverageQuery(query: string, params?: Record<string, unknown>): Promise<Entity[]> {
+    const session = this.getSession();
+    try {
+      const result = await this.runWithTimeout(session, query, params || {});
+      return result.records.map(record => {
+        const node = record.get(0);
+        const props = node.properties;
+        return {
+          id: props.id,
+          type: node.labels.find((l: string) => l !== 'Entity') || props.type,
+          createdAt: props.createdAt,
+          updatedAt: props.updatedAt,
+          provenance: [],
+          ...props,
+        } as Entity;
+      });
+    } finally {
+      await session.close();
+    }
+  }
 }

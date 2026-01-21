@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { createIngestHandler } from './handlers/ingest.handler.js';
 import { createAuditSummaryHandler } from './handlers/audit.handler.js';
+import { createCleanupHandler } from './handlers/admin.handler.js';
+import { createCoverageHandler, createCoverageListHandler } from './handlers/coverage.handler.js';
 import {
   createSemanticSearchHandler,
   createEntityContextHandler,
@@ -18,12 +20,16 @@ import {
 import type { IngestionOrchestrator } from '../services/ingestion/IngestionOrchestrator.js';
 import type { GraphRepository } from '../services/graph/GraphRepository.interface.js';
 import type { HybridQueryService } from '../services/query/HybridQueryService.js';
+import type { CleanupService } from '../services/ingestion/CleanupService.js';
+import type { CoverageQueryRegistry } from '../services/query/CoverageQueryRegistry.js';
 
 export async function registerRoutes(
   fastify: FastifyInstance,
   orchestrator: IngestionOrchestrator,
   graphRepo: GraphRepository,
-  hybridQuery: HybridQueryService
+  hybridQuery: HybridQueryService,
+  cleanupService?: CleanupService,
+  coverageRegistry?: CoverageQueryRegistry
 ) {
   fastify.post('/ingest', {
     schema: {
@@ -75,4 +81,20 @@ export async function registerRoutes(
     },
     handler: createGraphPatternHandler(hybridQuery),
   });
+
+  if (cleanupService) {
+    fastify.post('/admin/cleanup', {
+      handler: createCleanupHandler(cleanupService),
+    });
+  }
+
+  if (coverageRegistry) {
+    fastify.get('/coverage', {
+      handler: createCoverageListHandler(coverageRegistry),
+    });
+
+    fastify.get('/coverage/:queryName', {
+      handler: createCoverageHandler(coverageRegistry),
+    });
+  }
 }

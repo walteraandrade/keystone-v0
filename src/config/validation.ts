@@ -40,6 +40,14 @@ export const configSchema = z.object({
     maxTokens: z.number().int().positive().default(8192),
     overlapTokens: z.number().int().positive().default(100),
   }),
+  extractionLog: z.object({
+    enabled: z.boolean().default(true),
+    dbPath: z.string().default('./data/extraction.db'),
+  }),
+  cleanup: z.object({
+    enabled: z.boolean().default(true),
+    olderThanHours: z.number().int().positive().default(24),
+  }),
 });
 
 export type Config = z.infer<typeof configSchema>;

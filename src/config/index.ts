@@ -57,6 +57,14 @@ function loadConfig(): Config {
       maxTokens: process.env.CHUNK_MAX_TOKENS ? parseInt(process.env.CHUNK_MAX_TOKENS, 10) : undefined,
       overlapTokens: process.env.CHUNK_OVERLAP_TOKENS ? parseInt(process.env.CHUNK_OVERLAP_TOKENS, 10) : undefined,
     },
+    extractionLog: {
+      enabled: process.env.EXTRACTION_LOG_ENABLED !== 'false',
+      dbPath: process.env.EXTRACTION_LOG_DB || './data/extraction.db',
+    },
+    cleanup: {
+      enabled: process.env.CLEANUP_ENABLED !== 'false',
+      olderThanHours: process.env.CLEANUP_OLDER_THAN_HOURS ? parseInt(process.env.CLEANUP_OLDER_THAN_HOURS, 10) : 24,
+    },
   };
 
   try {
