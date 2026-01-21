@@ -1,5 +1,5 @@
 import type { Entity } from '../../domain/entities/index.js';
-import type { Relationship, RelationshipType } from '../../domain/relationships/types.js';
+import type { Relationship, RelationshipType, RelationshipStatus } from '../../domain/relationships/types.js';
 
 export interface Transaction {
   id: string;
@@ -51,7 +51,8 @@ export interface GraphRepository {
       sourceDocumentId: string;
       extractedBy: string;
     },
-    properties?: Record<string, unknown>
+    properties?: Record<string, unknown>,
+    status?: RelationshipStatus
   ): Promise<void>;
   getRelationships(entityId: string, direction?: 'in' | 'out' | 'both'): Promise<Relationship[]>;
 

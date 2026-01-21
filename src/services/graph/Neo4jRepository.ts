@@ -4,7 +4,7 @@ import { logger } from '../../utils/logger.js';
 import { GraphPersistenceError } from '../../utils/errors.js';
 import { generateId } from '../../utils/uuid.js';
 import type { Entity } from '../../domain/entities/index.js';
-import type { Relationship, RelationshipType } from '../../domain/relationships/types.js';
+import type { Relationship, RelationshipType, RelationshipStatus } from '../../domain/relationships/types.js';
 import type { Provenance, SourceReference } from '../../domain/entities/base/Provenance.js';
 import type { GraphRepository, Transaction, AuditSummary } from './GraphRepository.interface.js';
 
@@ -267,6 +267,15 @@ export class Neo4jRepository implements GraphRepository {
           `;
           params = { code: (candidate as any).code };
           break;
+        case 'ProcedureStep':
+          query = `
+            MATCH (ps:ProcedureStep {stepNumber: $stepNumber, processId: $processId})
+            WHERE NOT (ps)-[:SUPERSEDES]->()
+            RETURN ps.id as id
+            LIMIT 1
+          `;
+          params = { stepNumber: (candidate as any).stepNumber, processId: (candidate as any).processId };
+          break;
         default:
           return null;
       }
@@ -281,7 +290,7 @@ export class Neo4jRepository implements GraphRepository {
     }
   }
 
-  async createRelationship(
+  async createRelationship( // status param added
     from: string,
     to: string,
     type: RelationshipType,
@@ -291,7 +300,8 @@ export class Neo4jRepository implements GraphRepository {
       sourceDocumentId: string;
       extractedBy: string;
     },
-    properties?: Record<string, unknown>
+    properties?: Record<string, unknown>,
+    status?: RelationshipStatus
   ): Promise<void> {
     const session = this.getSession();
     try {
@@ -332,6 +342,7 @@ export class Neo4jRepository implements GraphRepository {
         confidence,
         extractionId,
         ...properties,
+        ...(status && { status }),
       };
 
       const query = `

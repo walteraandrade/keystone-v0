@@ -22,7 +22,7 @@ export class ValidationService {
   }
 
   private validateEntities(entities: ExtractionCandidate[]): void {
-    const validEntityTypes = ['Process', 'Audit', 'Document', 'FailureMode', 'Risk', 'Control', 'Finding', 'Requirement'];
+    const validEntityTypes = ['Process', 'Audit', 'Document', 'FailureMode', 'Risk', 'Control', 'Finding', 'Requirement', 'ProcedureStep'];
 
     for (const entity of entities) {
       if (!validEntityTypes.includes(entity.entityType)) {
@@ -81,6 +81,11 @@ export class ValidationService {
       case 'Requirement':
         if (!entity.properties.code || !entity.properties.description) {
           throw new ValidationError('Requirement missing code or description', entity.properties);
+        }
+        break;
+      case 'ProcedureStep':
+        if (!entity.properties.stepNumber || !entity.properties.processId || !entity.properties.description) {
+          throw new ValidationError('ProcedureStep missing stepNumber, processId, or description', entity.properties);
         }
         break;
     }
@@ -158,6 +163,8 @@ export class ValidationService {
           return e.properties.code === businessKey;
         case 'Audit':
           return e.properties.auditDate === businessKey;
+        case 'ProcedureStep':
+          return `${e.properties.stepNumber}:${e.properties.processId}` === businessKey;
         default:
           return true;
       }

@@ -10,7 +10,14 @@
     "test": "bun test",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
-    "migrate": "bun src/services/graph/migrations/run.ts"
+    "migrate": "bun src/services/graph/migrations/run.ts",
+    "validate:phase1": "bun run scripts/validate/phase1-domain.ts",
+    "validate:phase2": "bun run scripts/validate/phase2-service.ts",
+    "validate:phase3": "bun run scripts/validate/phase3-sqlite.ts",
+    "validate:phase4": "bun run scripts/validate/phase4-cleanup.ts",
+    "validate:phase5": "bun run scripts/validate/phase5-coverage.ts",
+    "validate:phase6": "bun run scripts/validate/phase6-docs.ts",
+    "validate:all": "bun run validate:phase1 && bun run validate:phase2 && bun run validate:phase3 && bun run validate:phase4 && bun run validate:phase5 && bun run validate:phase6"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.9.0",
