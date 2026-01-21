@@ -1,9 +1,11 @@
-import neo4j, { Driver, Session } from 'neo4j-driver';
+import neo4j, { Driver, Session, Result } from 'neo4j-driver';
 import { config } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import { GraphPersistenceError } from '../../utils/errors.js';
+import { generateId } from '../../utils/uuid.js';
 import type { Entity } from '../../domain/entities/index.js';
 import type { Relationship, RelationshipType } from '../../domain/relationships/types.js';
+import type { Provenance, SourceReference } from '../../domain/entities/base/Provenance.js';
 import type { GraphRepository, Transaction, AuditSummary } from './GraphRepository.interface.js';
 
 export class Neo4jRepository implements GraphRepository {
@@ -13,7 +15,13 @@ export class Neo4jRepository implements GraphRepository {
     try {
       this.driver = neo4j.driver(
         config.neo4j.uri,
-        neo4j.auth.basic(config.neo4j.user, config.neo4j.password)
+        neo4j.auth.basic(config.neo4j.user, config.neo4j.password),
+        {
+          maxConnectionLifetime: 30 * 60 * 1000,
+          maxConnectionPoolSize: 50,
+          connectionAcquisitionTimeout: 30 * 1000,
+          connectionTimeout: 30 * 1000,
+        }
       );
       await this.driver.verifyConnectivity();
       logger.info('Connected to Neo4j');
@@ -48,19 +56,74 @@ export class Neo4jRepository implements GraphRepository {
     return this.driver.session();
   }
 
+  private async runWithTimeout(
+    session: Session,
+    query: string,
+    params: Record<string, unknown> = {},
+    timeoutMs = 30000
+  ): Promise<Result> {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new GraphPersistenceError(`Query timeout after ${timeoutMs}ms`)), timeoutMs);
+    });
+    return Promise.race([session.run(query, params), timeoutPromise]);
+  }
+
   async createEntity<T extends Entity>(entity: T): Promise<string> {
     const session = this.getSession();
     try {
+      const { provenance, ...entityProps } = entity;
+
       const query = `
         CREATE (e:${entity.type}:Entity $props)
         RETURN e.id as id
       `;
-      const result = await session.run(query, { props: entity });
+      const result = await this.runWithTimeout(session,query, { props: entityProps });
       const id = result.records[0]?.get('id');
       if (!id) {
         throw new GraphPersistenceError('Failed to create entity');
       }
-      logger.debug({ entityType: entity.type, id }, 'Created entity');
+
+      for (const prov of provenance || []) {
+        const extractionId = generateId('ext');
+
+        await this.runWithTimeout(session,`
+          CREATE (ex:Extraction {
+            id: $extractionId,
+            sourceDocumentId: $sourceDocumentId,
+            extractedBy: $extractedBy,
+            extractedAt: $extractedAt,
+            confidence: $confidence,
+            section: $section,
+            pageNumber: $pageNumber,
+            lineRangeStart: $lineRangeStart,
+            lineRangeEnd: $lineRangeEnd
+          })
+        `, {
+          extractionId,
+          sourceDocumentId: prov.sourceDocumentId,
+          extractedBy: prov.extractedBy,
+          extractedAt: prov.extractedAt,
+          confidence: prov.confidence,
+          section: prov.sourceReference.section,
+          pageNumber: prov.sourceReference.pageNumber ?? null,
+          lineRangeStart: prov.sourceReference.lineRange?.[0] ?? null,
+          lineRangeEnd: prov.sourceReference.lineRange?.[1] ?? null,
+        });
+
+        await this.runWithTimeout(session,`
+          MATCH (e:Entity {id: $entityId})
+          MATCH (ex:Extraction {id: $extractionId})
+          CREATE (e)-[:EXTRACTED_FROM]->(ex)
+        `, { entityId: id, extractionId });
+
+        await this.runWithTimeout(session,`
+          MATCH (ex:Extraction {id: $extractionId})
+          MATCH (doc:Document {id: $sourceDocumentId})
+          CREATE (ex)-[:SOURCED_FROM]->(doc)
+        `, { extractionId, sourceDocumentId: prov.sourceDocumentId });
+      }
+
+      logger.debug({ entityType: entity.type, id }, 'Created entity with extractions');
       return id;
     } catch (error) {
       logger.error({ entity, error }, 'Failed to create entity');
@@ -75,13 +138,34 @@ export class Neo4jRepository implements GraphRepository {
     try {
       const query = `
         MATCH (e:Entity {id: $id})
-        RETURN e
+        OPTIONAL MATCH (e)-[:EXTRACTED_FROM]->(ex:Extraction)
+        RETURN e, collect(ex) as extractions
       `;
-      const result = await session.run(query, { id });
+      const result = await this.runWithTimeout(session,query, { id });
       if (result.records.length === 0) {
         return null;
       }
-      return result.records[0].get('e').properties as T;
+
+      const entityProps = result.records[0].get('e').properties;
+      const extractions = result.records[0].get('extractions');
+
+      const provenance: Provenance[] = extractions
+        .filter((ex: any) => ex.properties)
+        .map((ex: any) => ({
+          sourceDocumentId: ex.properties.sourceDocumentId,
+          extractedBy: ex.properties.extractedBy,
+          extractedAt: ex.properties.extractedAt,
+          confidence: ex.properties.confidence,
+          sourceReference: {
+            section: ex.properties.section,
+            pageNumber: ex.properties.pageNumber,
+            lineRange: ex.properties.lineRangeStart && ex.properties.lineRangeEnd
+              ? [ex.properties.lineRangeStart, ex.properties.lineRangeEnd]
+              : undefined,
+          },
+        }));
+
+      return { ...entityProps, provenance } as T;
     } catch (error) {
       logger.error({ id, error }, 'Failed to get entity');
       throw new GraphPersistenceError('Entity retrieval failed', error);
@@ -93,12 +177,16 @@ export class Neo4jRepository implements GraphRepository {
   async updateEntity<T extends Entity>(id: string, updates: Partial<T>): Promise<void> {
     const session = this.getSession();
     try {
+      const updatesWithTimestamp = {
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      };
       const query = `
         MATCH (e:Entity {id: $id})
-        SET e += $updates, e.updatedAt = datetime()
+        SET e += $updates
         RETURN e
       `;
-      const result = await session.run(query, { id, updates });
+      const result = await this.runWithTimeout(session, query, { id, updates: updatesWithTimestamp });
       if (result.records.length === 0) {
         throw new GraphPersistenceError(`Entity not found: ${id}`);
       }
@@ -118,7 +206,7 @@ export class Neo4jRepository implements GraphRepository {
         MATCH (e:Entity {id: $id})
         DETACH DELETE e
       `;
-      await session.run(query, { id });
+      await this.runWithTimeout(session,query, { id });
       logger.debug({ id }, 'Deleted entity');
     } catch (error) {
       logger.error({ id, error }, 'Failed to delete entity');
@@ -143,6 +231,15 @@ export class Neo4jRepository implements GraphRepository {
             LIMIT 1
           `;
           params = { name: (candidate as any).name, version: (candidate as any).version };
+          break;
+        case 'Audit':
+          query = `
+            MATCH (a:Audit {auditDate: $auditDate})
+            WHERE NOT (a)-[:SUPERSEDES]->()
+            RETURN a.id as id
+            LIMIT 1
+          `;
+          params = { auditDate: (candidate as any).auditDate };
           break;
         case 'FailureMode':
           query = `
@@ -174,7 +271,7 @@ export class Neo4jRepository implements GraphRepository {
           return null;
       }
 
-      const result = await session.run(query, params);
+      const result = await this.runWithTimeout(session,query, params);
       return result.records.length > 0 ? result.records[0].get('id') : null;
     } catch (error) {
       logger.error({ candidate, error }, 'Failed to find duplicate entity');
@@ -190,13 +287,50 @@ export class Neo4jRepository implements GraphRepository {
     type: RelationshipType,
     confidence: number,
     sourceReference: unknown,
+    extractionContext: {
+      sourceDocumentId: string;
+      extractedBy: string;
+    },
     properties?: Record<string, unknown>
   ): Promise<void> {
     const session = this.getSession();
     try {
+      const sr = sourceReference as SourceReference;
+      const extractionId = generateId('ext');
+
+      await this.runWithTimeout(session,`
+        CREATE (ex:Extraction {
+          id: $extractionId,
+          sourceDocumentId: $sourceDocumentId,
+          extractedBy: $extractedBy,
+          extractedAt: $extractedAt,
+          confidence: $confidence,
+          section: $section,
+          pageNumber: $pageNumber,
+          lineRangeStart: $lineRangeStart,
+          lineRangeEnd: $lineRangeEnd
+        })
+      `, {
+        extractionId,
+        sourceDocumentId: extractionContext.sourceDocumentId,
+        extractedBy: extractionContext.extractedBy,
+        extractedAt: new Date().toISOString(),
+        confidence,
+        section: sr.section,
+        pageNumber: sr.pageNumber ?? null,
+        lineRangeStart: sr.lineRange?.[0] ?? null,
+        lineRangeEnd: sr.lineRange?.[1] ?? null,
+      });
+
+      await this.runWithTimeout(session,`
+        MATCH (ex:Extraction {id: $extractionId})
+        MATCH (doc:Document {id: $sourceDocumentId})
+        CREATE (ex)-[:SOURCED_FROM]->(doc)
+      `, { extractionId, sourceDocumentId: extractionContext.sourceDocumentId });
+
       const relProps = {
         confidence,
-        sourceReference,
+        extractionId,
         ...properties,
       };
 
@@ -206,7 +340,7 @@ export class Neo4jRepository implements GraphRepository {
         CREATE (a)-[r:${type} $props]->(b)
         RETURN r
       `;
-      const result = await session.run(query, { from, to, props: relProps });
+      const result = await this.runWithTimeout(session,query, { from, to, props: relProps });
       if (result.records.length === 0) {
         throw new GraphPersistenceError('Failed to create relationship');
       }
@@ -214,6 +348,51 @@ export class Neo4jRepository implements GraphRepository {
     } catch (error) {
       logger.error({ from, to, type, error }, 'Failed to create relationship');
       throw new GraphPersistenceError('Relationship creation failed', error);
+    } finally {
+      await session.close();
+    }
+  }
+
+  async createSimpleRelationships(
+    relationships: Array<{
+      from: string;
+      to: string;
+      type: RelationshipType;
+      confidence: number;
+    }>
+  ): Promise<void> {
+    if (relationships.length === 0) return;
+
+    const session = this.getSession();
+    try {
+      for (let i = 0; i < relationships.length; i++) {
+        const rel = relationships[i];
+        logger.debug({
+          index: i + 1,
+          total: relationships.length,
+          from: rel.from,
+          to: rel.to,
+          type: rel.type
+        }, 'Creating simple relationship');
+
+        const query = `
+          MATCH (from {id: $from})
+          MATCH (to {id: $to})
+          CREATE (from)-[r:${rel.type} {confidence: $confidence}]->(to)
+        `;
+        await this.runWithTimeout(session,query, {
+          from: rel.from,
+          to: rel.to,
+          confidence: rel.confidence,
+        });
+
+        logger.debug({ index: i + 1 }, 'Simple relationship created');
+      }
+
+      logger.debug({ count: relationships.length }, 'All simple relationships created');
+    } catch (error) {
+      logger.error({ count: relationships.length, error }, 'Failed to create simple relationships');
+      throw new GraphPersistenceError('Simple relationship creation failed', error);
     } finally {
       await session.close();
     }
@@ -227,32 +406,45 @@ export class Neo4jRepository implements GraphRepository {
         case 'out':
           query = `
             MATCH (e:Entity {id: $entityId})-[r]->(target)
-            RETURN type(r) as type, r as rel, target.id as targetId
+            OPTIONAL MATCH (ex:Extraction {id: r.extractionId})
+            RETURN type(r) as type, r as rel, target.id as targetId, ex
           `;
           break;
         case 'in':
           query = `
             MATCH (source)-[r]->(e:Entity {id: $entityId})
-            RETURN type(r) as type, r as rel, source.id as sourceId
+            OPTIONAL MATCH (ex:Extraction {id: r.extractionId})
+            RETURN type(r) as type, r as rel, source.id as sourceId, ex
           `;
           break;
         case 'both':
           query = `
             MATCH (e:Entity {id: $entityId})-[r]-(other)
-            RETURN type(r) as type, r as rel, other.id as otherId
+            OPTIONAL MATCH (ex:Extraction {id: r.extractionId})
+            RETURN type(r) as type, r as rel, other.id as otherId, ex
           `;
           break;
       }
 
-      const result = await session.run(query, { entityId });
+      const result = await this.runWithTimeout(session,query, { entityId });
       return result.records.map(record => {
         const rel = record.get('rel').properties;
+        const ex = record.get('ex')?.properties;
+
+        const sourceReference: SourceReference | undefined = ex ? {
+          section: ex.section,
+          pageNumber: ex.pageNumber,
+          lineRange: ex.lineRangeStart && ex.lineRangeEnd
+            ? [ex.lineRangeStart, ex.lineRangeEnd]
+            : undefined,
+        } : undefined;
+
         return {
           from: direction === 'in' ? record.get('sourceId') : entityId,
           to: direction === 'out' ? record.get('targetId') : entityId,
           type: record.get('type') as RelationshipType,
           confidence: rel.confidence,
-          sourceReference: rel.sourceReference,
+          sourceReference,
           properties: rel,
         };
       });
@@ -285,7 +477,7 @@ export class Neo4jRepository implements GraphRepository {
           count(DISTINCT f) as findingCount
       `;
 
-      const result = await session.run(query, { auditId });
+      const result = await this.runWithTimeout(session,query, { auditId });
       if (result.records.length === 0) {
         throw new GraphPersistenceError(`Audit not found: ${auditId}`);
       }
@@ -336,12 +528,34 @@ export class Neo4jRepository implements GraphRepository {
       const query = `
         MATCH (n:${nodeLabel})
         ${whereClause}
-        RETURN n
+        OPTIONAL MATCH (n)-[:EXTRACTED_FROM]->(ex:Extraction)
+        RETURN n, collect(ex) as extractions
         LIMIT $limit
       `;
 
-      const result = await session.run(query, { ...properties, limit: neo4j.int(limit) });
-      return result.records.map(record => record.get('n').properties as Entity);
+      const result = await this.runWithTimeout(session,query, { ...properties, limit: neo4j.int(limit) });
+      return result.records.map(record => {
+        const entityProps = record.get('n').properties;
+        const extractions = record.get('extractions');
+
+        const provenance: Provenance[] = extractions
+          .filter((ex: any) => ex.properties)
+          .map((ex: any) => ({
+            sourceDocumentId: ex.properties.sourceDocumentId,
+            extractedBy: ex.properties.extractedBy,
+            extractedAt: ex.properties.extractedAt,
+            confidence: ex.properties.confidence,
+            sourceReference: {
+              section: ex.properties.section,
+              pageNumber: ex.properties.pageNumber,
+              lineRange: ex.properties.lineRangeStart && ex.properties.lineRangeEnd
+                ? [ex.properties.lineRangeStart, ex.properties.lineRangeEnd]
+                : undefined,
+            },
+          }));
+
+        return { ...entityProps, provenance } as Entity;
+      });
     } catch (error) {
       logger.error({ params, error }, 'Failed to query by pattern');
       throw new GraphPersistenceError('Pattern query failed', error);
@@ -356,11 +570,33 @@ export class Neo4jRepository implements GraphRepository {
       const query = `
         MATCH (n)
         WHERE n.id IN $ids
-        RETURN n
+        OPTIONAL MATCH (n)-[:EXTRACTED_FROM]->(ex:Extraction)
+        RETURN n, collect(ex) as extractions
       `;
 
-      const result = await session.run(query, { ids });
-      return result.records.map(record => record.get('n').properties as Entity);
+      const result = await this.runWithTimeout(session,query, { ids });
+      return result.records.map(record => {
+        const entityProps = record.get('n').properties;
+        const extractions = record.get('extractions');
+
+        const provenance: Provenance[] = extractions
+          .filter((ex: any) => ex.properties)
+          .map((ex: any) => ({
+            sourceDocumentId: ex.properties.sourceDocumentId,
+            extractedBy: ex.properties.extractedBy,
+            extractedAt: ex.properties.extractedAt,
+            confidence: ex.properties.confidence,
+            sourceReference: {
+              section: ex.properties.section,
+              pageNumber: ex.properties.pageNumber,
+              lineRange: ex.properties.lineRangeStart && ex.properties.lineRangeEnd
+                ? [ex.properties.lineRangeStart, ex.properties.lineRangeEnd]
+                : undefined,
+            },
+          }));
+
+        return { ...entityProps, provenance } as Entity;
+      });
     } catch (error) {
       logger.error({ count: ids.length, error }, 'Failed to get entities by IDs');
       throw new GraphPersistenceError('Batch entity retrieval failed', error);
@@ -386,29 +622,74 @@ export class Neo4jRepository implements GraphRepository {
         WHERE source.id IN $entityIds
         MATCH (source)-[r]-(target)
         ${whereClause}
-        RETURN source, r, target
+        OPTIONAL MATCH (source)-[:EXTRACTED_FROM]->(sourceEx:Extraction)
+        OPTIONAL MATCH (target)-[:EXTRACTED_FROM]->(targetEx:Extraction)
+        OPTIONAL MATCH (relEx:Extraction {id: r.extractionId})
+        RETURN source, collect(DISTINCT sourceEx) as sourceExtractions,
+               target, collect(DISTINCT targetEx) as targetExtractions,
+               r, relEx
       `;
 
-      const result = await session.run(query, { entityIds });
+      const result = await this.runWithTimeout(session,query, { entityIds });
 
       const entities = new Map<string, Entity>();
       const relationships: Relationship[] = [];
 
+      const reconstructProvenance = (extractions: any[]): Provenance[] => {
+        return extractions
+          .filter((ex: any) => ex.properties)
+          .map((ex: any) => ({
+            sourceDocumentId: ex.properties.sourceDocumentId,
+            extractedBy: ex.properties.extractedBy,
+            extractedAt: ex.properties.extractedAt,
+            confidence: ex.properties.confidence,
+            sourceReference: {
+              section: ex.properties.section,
+              pageNumber: ex.properties.pageNumber,
+              lineRange: ex.properties.lineRangeStart && ex.properties.lineRangeEnd
+                ? [ex.properties.lineRangeStart, ex.properties.lineRangeEnd]
+                : undefined,
+            },
+          }));
+      };
+
       for (const record of result.records) {
-        const source = record.get('source').properties;
-        const target = record.get('target').properties;
+        const sourceProps = record.get('source').properties;
+        const targetProps = record.get('target').properties;
+        const sourceExtractions = record.get('sourceExtractions');
+        const targetExtractions = record.get('targetExtractions');
+
+        const sourceEntity = {
+          ...sourceProps,
+          provenance: reconstructProvenance(sourceExtractions),
+        } as Entity;
+
+        const targetEntity = {
+          ...targetProps,
+          provenance: reconstructProvenance(targetExtractions),
+        } as Entity;
+
+        entities.set(sourceEntity.id, sourceEntity);
+        entities.set(targetEntity.id, targetEntity);
+
         const rel = record.get('r').properties;
         const relType = record.get('r').type;
+        const relEx = record.get('relEx')?.properties;
 
-        entities.set(source.id, source as Entity);
-        entities.set(target.id, target as Entity);
+        const sourceReference: SourceReference | undefined = relEx ? {
+          section: relEx.section,
+          pageNumber: relEx.pageNumber,
+          lineRange: relEx.lineRangeStart && relEx.lineRangeEnd
+            ? [relEx.lineRangeStart, relEx.lineRangeEnd]
+            : undefined,
+        } : undefined;
 
         relationships.push({
-          from: source.id,
-          to: target.id,
+          from: sourceEntity.id,
+          to: targetEntity.id,
           type: relType as RelationshipType,
           confidence: rel.confidence,
-          sourceReference: rel.sourceReference,
+          sourceReference,
           properties: rel,
         });
       }

@@ -9,8 +9,10 @@ export class OpenAIClientFactory {
       return this.instance;
     }
 
-    const clientConfig: { apiKey: string; baseURL?: string } = {
+    const clientConfig: { apiKey: string; baseURL?: string; timeout?: number; maxRetries?: number } = {
       apiKey: config.llm.apiKey,
+      timeout: 60_000,
+      maxRetries: 2,
     };
 
     if (config.llm.provider === 'openrouter') {

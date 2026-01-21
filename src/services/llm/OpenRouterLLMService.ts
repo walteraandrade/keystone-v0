@@ -41,14 +41,17 @@ export class OpenRouterLLMService implements LLMService {
     try {
       const { systemPrompt, userPrompt } = this.getPrompts(request);
 
-      logger.debug(
+      logger.info(
         {
           documentType: request.documentType,
           contentLength: request.content.length,
+          contentPreview: request.content.substring(0, 200),
+          model: config.llm.model,
         },
         "Sending extraction request to OpenRouter",
       );
 
+      const startTime = Date.now();
       const completion = await this.client.chat.completions.create({
         model: config.llm.model,
         messages: [
@@ -60,12 +63,30 @@ export class OpenRouterLLMService implements LLMService {
         response_format: { type: "json_object" },
       });
 
+      logger.info(
+        {
+          duration: `${Date.now() - startTime}ms`,
+          tokensUsed: completion.usage?.total_tokens
+        },
+        "Received response from OpenRouter"
+      );
+
       const content = completion.choices[0]?.message?.content;
       if (!content) {
         throw new LLMExtractionError("Empty response from OpenRouter");
       }
 
+      logger.info({ contentPreview: content.substring(0, 500) }, "Raw LLM response preview");
+
       const parsed = JSON.parse(content);
+
+      logger.info({
+        hasEntities: !!parsed.entities,
+        entityCount: parsed.entities?.length || 0,
+        hasRelationships: !!parsed.relationships,
+        relationshipCount: parsed.relationships?.length || 0,
+        topLevelKeys: Object.keys(parsed)
+      }, "Parsed LLM response structure");
 
       return {
         entities: parsed.entities || [],

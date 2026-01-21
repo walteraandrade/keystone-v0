@@ -61,21 +61,33 @@ export class IPARSegmentationStrategy implements SemanticSegmentationStrategy {
       /(?:f|nc|ac)-?\d{2,4}/gi,
     ];
 
+    const MAX_ITERATIONS = 1000;
+
     for (const pattern of findingPatterns) {
+      pattern.lastIndex = 0;
       let match;
+      let iterations = 0;
+      let lastIndex = -1;
+
       while ((match = pattern.exec(content)) !== null) {
+        if (++iterations > MAX_ITERATIONS) break;
+        if (pattern.lastIndex === lastIndex) {
+          pattern.lastIndex++;
+          continue;
+        }
+        lastIndex = pattern.lastIndex;
+
         const findingCode = match[1] || match[0];
         const startPos = match.index;
 
-        const nextFindingMatch = content.substring(startPos + match[0].length).match(findingPatterns[0]);
-        const endPos = nextFindingMatch
-          ? startPos + match[0].length + nextFindingMatch.index!
-          : content.indexOf('\n\n\n', startPos + match[0].length);
+        const remainingContent = content.substring(startPos + match[0].length);
+        const simpleEndPattern = /\n\n\n/;
+        const tripleNewline = remainingContent.match(simpleEndPattern);
+        const endPos = tripleNewline
+          ? startPos + match[0].length + tripleNewline.index!
+          : Math.min(startPos + 2000, content.length);
 
-        const findingText = content.substring(
-          startPos,
-          endPos > startPos ? endPos : Math.min(startPos + 2000, content.length)
-        ).trim();
+        const findingText = content.substring(startPos, endPos).trim();
 
         if (findingText.length > 50) {
           const lines = findingText.split('\n').length;
@@ -102,9 +114,22 @@ export class IPARSegmentationStrategy implements SemanticSegmentationStrategy {
       /(?:ISO|ASME|API|ABNT)\s*\d+/gi,
     ];
 
+    const MAX_ITERATIONS = 1000;
+
     for (const pattern of requirementPatterns) {
+      pattern.lastIndex = 0;
       let match;
+      let iterations = 0;
+      let lastIndex = -1;
+
       while ((match = pattern.exec(content)) !== null) {
+        if (++iterations > MAX_ITERATIONS) break;
+        if (pattern.lastIndex === lastIndex) {
+          pattern.lastIndex++;
+          continue;
+        }
+        lastIndex = pattern.lastIndex;
+
         const reqCode = match[1] || match[0];
         const startPos = match.index;
 

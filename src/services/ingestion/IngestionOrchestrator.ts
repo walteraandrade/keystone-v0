@@ -81,19 +81,23 @@ export class IngestionOrchestrator {
         content: processed.content,
         metadata: { ...metadata, ...processed.metadata },
       });
-      logger.debug({ documentId, entityCount: extraction.entities.length }, 'Extracted entities');
+      logger.info({ documentId, entityCount: extraction.entities.length, relationshipCount: extraction.relationships.length }, 'LLM extraction complete');
 
       this.validationService.validateExtraction(extraction);
-      logger.debug({ documentId }, 'Validated extraction');
+      logger.info({ documentId }, 'Validation complete');
 
-      const tx = await this.graphRepo.beginTransaction();
       let entityCounts: Record<string, number> = {};
       let relationshipCount = 0;
 
       try {
+        logger.info({ documentId, totalEntities: extraction.entities.length }, 'Starting graph persistence');
         const entityMap = new Map<string, string>();
 
-        for (const entityCandidate of extraction.entities) {
+        for (let i = 0; i < extraction.entities.length; i++) {
+          const entityCandidate = extraction.entities[i];
+          if (i % 10 === 0) {
+            logger.info({ documentId, progress: `${i}/${extraction.entities.length}` }, 'Processing entities');
+          }
           const result = await this.deduplicationService.deduplicateEntity(
             entityCandidate,
             documentId,
@@ -106,7 +110,14 @@ export class IngestionOrchestrator {
           entityCounts[entityCandidate.entityType] = (entityCounts[entityCandidate.entityType] || 0) + 1;
         }
 
+        logger.info({ documentId, entityCounts }, 'All entities processed, creating relationships');
+
         for (const relCandidate of extraction.relationships) {
+          if (relCandidate.from.startsWith('Document:') || relCandidate.to.startsWith('Document:')) {
+            logger.debug({ relationship: relCandidate }, 'Skipping Document relationship - will be auto-created');
+            continue;
+          }
+
           const fromId = entityMap.get(relCandidate.from);
           const toId = entityMap.get(relCandidate.to);
 
@@ -117,22 +128,49 @@ export class IngestionOrchestrator {
               RelationshipType[relCandidate.type as keyof typeof RelationshipType],
               relCandidate.confidence,
               relCandidate.sourceReference,
+              {
+                sourceDocumentId: documentId,
+                extractedBy: extraction.metadata.modelUsed,
+              },
               relCandidate.properties
             );
             relationshipCount++;
           }
         }
 
-        await this.graphRepo.updateEntity(documentId, { status: 'PROCESSED' });
+        logger.info({ documentId }, 'Creating implicit Document relationships');
+        const auditIds: string[] = [];
+        const failureModeIds: string[] = [];
 
-        await this.graphRepo.commit(tx);
-        logger.debug({ documentId }, 'Committed graph transaction');
+        for (const [entityRef, entityId] of entityMap.entries()) {
+          const [entityType] = entityRef.split(':');
+          if (entityType === 'Audit') {
+            auditIds.push(entityId);
+          } else if (entityType === 'FailureMode') {
+            failureModeIds.push(entityId);
+          }
+        }
+
+        logger.info({ documentId, auditCount: auditIds.length, failureModeCount: failureModeIds.length }, 'Starting implicit relationship creation');
+
+        const implicitRelCount = await this.createImplicitDocumentRelationships(
+          documentId,
+          auditIds,
+          failureModeIds
+        );
+
+        logger.info({ documentId, implicitRelCount }, 'Completed implicit relationship creation');
+        relationshipCount += implicitRelCount;
+
+        await this.graphRepo.updateEntity(documentId, { status: 'PROCESSED' });
+        logger.info({ documentId, entityCounts, relationshipCount }, 'Graph persistence complete');
       } catch (error) {
-        await this.graphRepo.rollback(tx);
+        logger.error({ documentId, error }, 'Graph persistence failed');
         throw error;
       }
 
       try {
+        logger.info({ documentId }, 'Starting semantic chunking and embedding');
         const allChunks = this.semanticChunker.chunk(processed.content, processed.type);
         const validChunks = allChunks.filter(c => c.text && c.text.trim().length > 0);
 
@@ -155,6 +193,7 @@ export class IngestionOrchestrator {
         }
 
         const embeddings = await this.embeddingService.generateEmbeddings(validChunks.map(c => c.text));
+        logger.info({ documentId, embeddingCount: embeddings.length }, 'Embeddings generated');
 
         if (embeddings.length !== validChunks.length) {
           throw new Error(`Embedding count mismatch: ${embeddings.length} embeddings for ${validChunks.length} chunks`);
@@ -181,9 +220,9 @@ export class IngestionOrchestrator {
         }));
 
         await this.vectorStore.upsertDocuments(vectorDocs);
-        logger.debug({ documentId, vectorCount: vectorDocs.length }, 'Stored vectors');
+        logger.info({ documentId, vectorCount: vectorDocs.length }, 'Vector storage complete');
       } catch (error) {
-        logger.error({ documentId, error }, 'Embedding generation failed, continuing without vectors');
+        logger.error({ documentId, error }, 'Embedding/vector storage failed, continuing without vectors');
       }
 
       const processingTime = `${((Date.now() - startTime) / 1000).toFixed(1)}s`;
@@ -217,6 +256,41 @@ export class IngestionOrchestrator {
     }
   }
 
+  private async createImplicitDocumentRelationships(
+    documentId: string,
+    auditIds: string[],
+    failureModeIds: string[]
+  ): Promise<number> {
+    logger.info({ documentId, auditIds, failureModeIds }, 'Building implicit relationships');
+    const relationships = [];
+
+    for (const auditId of auditIds) {
+      relationships.push({
+        from: auditId,
+        to: documentId,
+        type: RelationshipType.USES,
+        confidence: 1.0,
+      });
+    }
+
+    for (const fmId of failureModeIds) {
+      relationships.push({
+        from: documentId,
+        to: fmId,
+        type: RelationshipType.IDENTIFIES,
+        confidence: 1.0,
+      });
+    }
+
+    logger.info({ documentId, relationshipCount: relationships.length }, 'Calling createSimpleRelationships');
+    if (relationships.length > 0) {
+      await this.graphRepo.createSimpleRelationships(relationships);
+    }
+
+    logger.info({ documentId, auditCount: auditIds.length, failureModeCount: failureModeIds.length }, 'Finished creating implicit Document relationships');
+    return relationships.length;
+  }
+
   private getBusinessKey(entityType: string, properties: Record<string, unknown>): string {
     switch (entityType) {
       case 'Process':
@@ -224,6 +298,8 @@ export class IngestionOrchestrator {
       case 'FailureMode':
       case 'Requirement':
         return properties.code as string;
+      case 'Audit':
+        return properties.auditDate as string;
       default:
         return Math.random().toString(36);
     }

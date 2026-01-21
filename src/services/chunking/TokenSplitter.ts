@@ -1,4 +1,4 @@
-import { encoding_for_model, type Tiktoken } from 'tiktoken';
+import { get_encoding, type Tiktoken } from 'tiktoken';
 import { logger } from '../../utils/logger.js';
 import type { SemanticSegment, TokenizedChunk } from './types.js';
 
@@ -8,7 +8,7 @@ export class TokenSplitter {
   private overlapTokens: number;
 
   constructor(maxTokens = 8192, overlapTokens = 100) {
-    this.encoder = encoding_for_model('text-embedding-3-small');
+    this.encoder = get_encoding('cl100k_base');
     this.maxTokens = maxTokens;
     this.overlapTokens = overlapTokens;
   }

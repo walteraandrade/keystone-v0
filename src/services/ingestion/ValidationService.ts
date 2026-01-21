@@ -46,6 +46,11 @@ export class ValidationService {
 
   private validateEntityProperties(entity: ExtractionCandidate): void {
     switch (entity.entityType) {
+      case 'Audit':
+        if (!entity.properties.auditDate) {
+          throw new ValidationError('Audit missing auditDate', entity.properties);
+        }
+        break;
       case 'Process':
         if (!entity.properties.name || !entity.properties.version) {
           throw new ValidationError('Process missing name or version', entity.properties);
@@ -82,6 +87,11 @@ export class ValidationService {
   }
 
   private validateRelationships(relationships: RelationshipCandidate[], entities: ExtractionCandidate[]): void {
+    logger.debug({
+      entityTypes: entities.map(e => e.entityType),
+      relationships: relationships.map(r => ({ from: r.from, to: r.to, type: r.type }))
+    }, 'Validating relationships');
+
     for (const rel of relationships) {
       if (rel.confidence < this.minConfidence) {
         throw new ValidationError(`Relationship confidence ${rel.confidence} below threshold ${this.minConfidence}`, {
@@ -98,6 +108,16 @@ export class ValidationService {
       const toEntity = this.findEntityByReference(rel.to, entities);
 
       if (!fromEntity || !toEntity) {
+        logger.error({
+          relationship: { from: rel.from, to: rel.to, type: rel.type },
+          foundFrom: !!fromEntity,
+          foundTo: !!toEntity,
+          availableEntities: entities.map(e => ({
+            type: e.entityType,
+            props: e.properties
+          }))
+        }, 'Failed to find entity reference');
+
         throw new ValidationError('Relationship references non-existent entity', {
           from: rel.from,
           to: rel.to,
@@ -120,7 +140,12 @@ export class ValidationService {
   }
 
   private findEntityByReference(ref: string, entities: ExtractionCandidate[]): ExtractionCandidate | undefined {
-    const [entityType, businessKey] = ref.split(':');
+    const colonIndex = ref.indexOf(':');
+    if (colonIndex === -1) return undefined;
+
+    const entityType = ref.substring(0, colonIndex);
+    const businessKey = ref.substring(colonIndex + 1);
+
     return entities.find(e => {
       if (e.entityType !== entityType) return false;
 
@@ -131,6 +156,8 @@ export class ValidationService {
           return e.properties.code === businessKey;
         case 'Requirement':
           return e.properties.code === businessKey;
+        case 'Audit':
+          return e.properties.auditDate === businessKey;
         default:
           return true;
       }

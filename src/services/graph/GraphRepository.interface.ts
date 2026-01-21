@@ -47,9 +47,22 @@ export interface GraphRepository {
     type: RelationshipType,
     confidence: number,
     sourceReference: unknown,
+    extractionContext: {
+      sourceDocumentId: string;
+      extractedBy: string;
+    },
     properties?: Record<string, unknown>
   ): Promise<void>;
   getRelationships(entityId: string, direction?: 'in' | 'out' | 'both'): Promise<Relationship[]>;
+
+  createSimpleRelationships(
+    relationships: Array<{
+      from: string;
+      to: string;
+      type: RelationshipType;
+      confidence: number;
+    }>
+  ): Promise<void>;
 
   getAuditSummary(auditId: string): Promise<AuditSummary>;
 

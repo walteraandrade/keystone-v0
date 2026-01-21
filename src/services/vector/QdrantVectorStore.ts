@@ -169,7 +169,7 @@ export class QdrantVectorStore implements VectorStore {
   async scrollAll(callback: (chunk: VectorDocument) => void): Promise<void> {
     const client = this.getClient();
     try {
-      let offset: string | number | undefined = undefined;
+      let offset: string | number | Record<string, unknown> | null | undefined = undefined;
       let hasMore = true;
       let totalProcessed = 0;
 

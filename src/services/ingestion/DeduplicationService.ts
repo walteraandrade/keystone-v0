@@ -50,6 +50,10 @@ export class DeduplicationService {
       1.0,
       candidate.sourceReference,
       {
+        sourceDocumentId: documentId,
+        extractedBy: extractedBy,
+      },
+      {
         reason: 'Property changes detected',
         date: new Date().toISOString(),
       }

@@ -12,7 +12,7 @@ import { HybridQueryService } from './services/query/HybridQueryService.js';
 import { registerRoutes } from './api/routes.js';
 
 const fastify = Fastify({
-  logger,
+  logger: logger as any,
 });
 
 await fastify.register(multipart, {
@@ -68,7 +68,7 @@ fastify.get('/health', async () => {
   };
 });
 
-await registerRoutes(fastify, orchestrator, graphRepo, hybridQuery);
+await registerRoutes(fastify as any, orchestrator, graphRepo, hybridQuery);
 
 fastify.setErrorHandler((error, request, reply) => {
   logger.error({ error, url: request.url }, 'Request error');

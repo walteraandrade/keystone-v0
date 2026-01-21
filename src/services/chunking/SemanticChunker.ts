@@ -13,7 +13,7 @@ export class SemanticChunker {
   private tokenSplitter: TokenSplitter;
 
   constructor() {
-    this.strategies = new Map([
+    this.strategies = new Map<DocumentType, SemanticSegmentationStrategy>([
       ['fmea', new FMEASegmentationStrategy()],
       ['ipar', new IPARSegmentationStrategy()],
       ['generic', new GenericSegmentationStrategy()],

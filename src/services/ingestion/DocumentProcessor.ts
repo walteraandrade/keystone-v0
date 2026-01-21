@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises';
 import * as XLSX from 'xlsx';
-import pdfParse from 'pdf-parse';
+import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import { logger } from '../../utils/logger.js';
 import { ValidationError } from '../../utils/errors.js';
 import type { DocumentType } from '../../domain/entities/Document.js';

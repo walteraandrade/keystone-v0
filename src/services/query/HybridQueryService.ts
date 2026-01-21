@@ -3,6 +3,7 @@ import { GraphPersistenceError } from '../../utils/errors.js';
 import type { GraphRepository } from '../graph/GraphRepository.interface.js';
 import type { VectorStore, VectorDocument } from '../vector/VectorStore.interface.js';
 import type { EmbeddingService } from '../vector/EmbeddingService.js';
+import type { Relationship } from '../../domain/relationships/types.js';
 import type {
   SemanticSearchParams,
   SemanticSearchResult,
@@ -228,7 +229,7 @@ export class HybridQueryService {
         ? await this.graphRepo.queryByPattern({ nodeLabel: entityType, properties: filters, limit })
         : [];
 
-      let allRelationships = [];
+      let allRelationships: Relationship[] = [];
 
       if (relationships && relationships.length > 0 && entities.length > 0) {
         const entityIds = entities.map(e => e.id);

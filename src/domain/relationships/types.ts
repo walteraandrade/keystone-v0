@@ -18,7 +18,7 @@ export interface BaseRelationship {
   to: string;
   type: RelationshipType;
   confidence: number;
-  sourceReference: SourceReference;
+  sourceReference?: SourceReference;
   properties?: Record<string, unknown>;
 }
 
