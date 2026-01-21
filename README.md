@@ -179,6 +179,31 @@ curl -X POST http://localhost:3003/query/graph \
 
 Returns entities + relationships + optional chunks.
 
+### Coverage Queries
+
+Predefined queries for audit coverage gaps:
+
+```bash
+# Risks without mitigating controls
+curl http://localhost:3003/coverage/risks-without-controls
+
+# Controls without procedure steps
+curl http://localhost:3003/coverage/controls-without-steps
+
+# High RPN failure modes without mitigation
+curl http://localhost:3003/coverage/unmitigated-high-rpn?threshold=100
+```
+
+### Admin: Cleanup Failed Documents
+
+Remove failed documents older than N hours:
+
+```bash
+curl -X POST http://localhost:3003/admin/cleanup \
+  -H 'Content-Type: application/json' \
+  -d '{"olderThanHours": 24}'
+```
+
 ## Domain Model
 
 ### Entities (Neo4j Nodes)
@@ -193,6 +218,7 @@ All entities have: `id`, `type`, `createdAt`, `updatedAt`, `provenance[]`
 - **Control**: Mitigation control
 - **Finding**: Audit finding
 - **Requirement**: Regulatory/compliance requirement (business key: `code`)
+- **ProcedureStep**: Operational procedure step (business key: `stepNumber + processId`)
 
 ### Relationships (Neo4j Edges)
 
@@ -206,7 +232,11 @@ All relationships include `confidence` score and `sourceReference`.
 - Finding **ADDRESSES** FailureMode
 - Finding **REFERENCES** Control
 - Document **SATISFIES** / **FAILS_TO_SATISFY** Requirement
+- ProcedureStep **IMPLEMENTS** Control
+- Control **APPLIED_IN** ProcedureStep
 - Entity **SUPERSEDES** Entity (versioning)
+
+Relationships may include `status`: `SUGGESTED` (AI-proposed) or `CONFIRMED` (validated).
 
 ### Versioning Strategy
 
