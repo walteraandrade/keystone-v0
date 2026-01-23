@@ -15,6 +15,7 @@ export const relationshipRules: RelationshipRule[] = [
   { from: 'FailureMode', to: 'Risk', allowedTypes: [RelationshipType.IMPLIES] },
   { from: 'FailureMode', to: 'FailureMode', allowedTypes: [RelationshipType.SUPERSEDES] },
   { from: 'Control', to: 'FailureMode', allowedTypes: [RelationshipType.MITIGATES] },
+  { from: 'Control', to: 'Risk', allowedTypes: [RelationshipType.MITIGATES] },
   { from: 'Control', to: 'Control', allowedTypes: [RelationshipType.SUPERSEDES] },
   { from: 'Finding', to: 'FailureMode', allowedTypes: [RelationshipType.ADDRESSES] },
   { from: 'Finding', to: 'Control', allowedTypes: [RelationshipType.REFERENCES] },

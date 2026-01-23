@@ -86,13 +86,14 @@ export class QdrantVectorStore implements VectorStore {
   ): Promise<VectorSearchResult[]> {
     const client = this.getClient();
     try {
+      const qdrantFilter = filter ? { must: Object.entries(filter).map(([key, value]) => ({
+        key,
+        match: { value },
+      }))} : undefined;
       const response = await client.search(this.collectionName, {
         vector: query,
         limit,
-        filter: filter ? { must: Object.entries(filter).map(([key, value]) => ({
-          key: `payload.${key}`,
-          match: { value },
-        }))} : undefined,
+        filter: qdrantFilter,
         with_payload: true,
       });
 

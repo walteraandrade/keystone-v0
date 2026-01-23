@@ -56,6 +56,8 @@ function loadConfig(): Config {
     chunking: {
       maxTokens: process.env.CHUNK_MAX_TOKENS ? parseInt(process.env.CHUNK_MAX_TOKENS, 10) : undefined,
       overlapTokens: process.env.CHUNK_OVERLAP_TOKENS ? parseInt(process.env.CHUNK_OVERLAP_TOKENS, 10) : undefined,
+      similarityThreshold: process.env.CHUNK_SIMILARITY_THRESHOLD ? parseFloat(process.env.CHUNK_SIMILARITY_THRESHOLD) : undefined,
+      minSegmentTokens: process.env.CHUNK_MIN_SEGMENT_TOKENS ? parseInt(process.env.CHUNK_MIN_SEGMENT_TOKENS, 10) : undefined,
     },
     extractionLog: {
       enabled: process.env.EXTRACTION_LOG_ENABLED !== 'false',

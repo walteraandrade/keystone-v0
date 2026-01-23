@@ -1,119 +1,146 @@
-import type { SourceReference } from '../entities/base/Provenance.js';
+import type { SourceReference } from "../entities/base/Provenance.js"
 
 export enum RelationshipType {
-  EVALUATES = 'EVALUATES',
-  USES = 'USES',
-  IDENTIFIES = 'IDENTIFIES',
-  IMPLIES = 'IMPLIES',
-  MITIGATES = 'MITIGATES',
-  ADDRESSES = 'ADDRESSES',
-  REFERENCES = 'REFERENCES',
-  SATISFIES = 'SATISFIES',
-  FAILS_TO_SATISFY = 'FAILS_TO_SATISFY',
-  SUPERSEDES = 'SUPERSEDES',
-  IMPLEMENTS = 'IMPLEMENTS',
-  APPLIED_IN = 'APPLIED_IN',
+  EVALUATES = "EVALUATES",
+  USES = "USES",
+  IDENTIFIES = "IDENTIFIES",
+  IMPLIES = "IMPLIES",
+  MITIGATES = "MITIGATES",
+  ADDRESSES = "ADDRESSES",
+  REFERENCES = "REFERENCES",
+  SATISFIES = "SATISFIES",
+  FAILS_TO_SATISFY = "FAILS_TO_SATISFY",
+  SUPERSEDES = "SUPERSEDES",
+  IMPLEMENTS = "IMPLEMENTS",
+  APPLIED_IN = "APPLIED_IN",
+  RELATES_TO = "RELATES_TO",
+  CAUSED_BY = "CAUSED_BY",
+  INVOLVED_STEP = "INVOLVED_STEP",
 }
 
-export type RelationshipStatus = 'SUGGESTED' | 'CONFIRMED';
+export type RelationshipStatus = "SUGGESTED" | "CONFIRMED"
 
 export interface BaseRelationship {
-  from: string;
-  to: string;
-  type: RelationshipType;
-  confidence: number;
-  sourceReference?: SourceReference;
-  properties?: Record<string, unknown>;
-  status?: RelationshipStatus;
+  from: string
+  to: string
+  type: RelationshipType
+  confidence: number
+  sourceReference?: SourceReference
+  properties?: Record<string, unknown>
+  status?: RelationshipStatus
 }
 
 export interface EvaluatesRelationship extends BaseRelationship {
-  type: RelationshipType.EVALUATES;
+  type: RelationshipType.EVALUATES
   properties?: {
-    date?: string;
-    auditor?: string;
-    scope?: string;
-  };
+    date?: string
+    auditor?: string
+    scope?: string
+  }
 }
 
 export interface UsesRelationship extends BaseRelationship {
-  type: RelationshipType.USES;
+  type: RelationshipType.USES
   properties?: {
-    uploadedAt?: string;
-  };
+    uploadedAt?: string
+  }
 }
 
 export interface IdentifiesRelationship extends BaseRelationship {
-  type: RelationshipType.IDENTIFIES;
+  type: RelationshipType.IDENTIFIES
   properties?: {
-    section?: string;
-  };
+    section?: string
+  }
 }
 
 export interface ImpliesRelationship extends BaseRelationship {
-  type: RelationshipType.IMPLIES;
+  type: RelationshipType.IMPLIES
   properties?: {
-    severity?: number;
-    likelihood?: number;
-  };
+    severity?: number
+    likelihood?: number
+  }
 }
 
 export interface MitigatesRelationship extends BaseRelationship {
-  type: RelationshipType.MITIGATES;
+  type: RelationshipType.MITIGATES
   properties?: {
-    effectiveness?: number;
-  };
+    effectiveness?: number
+  }
 }
 
 export interface AddressesRelationship extends BaseRelationship {
-  type: RelationshipType.ADDRESSES;
+  type: RelationshipType.ADDRESSES
   properties?: {
-    status?: string;
-    priority?: string;
-  };
+    status?: string
+    priority?: string
+  }
 }
 
 export interface ReferencesRelationship extends BaseRelationship {
-  type: RelationshipType.REFERENCES;
+  type: RelationshipType.REFERENCES
   properties?: {
-    compliance?: string;
-  };
+    compliance?: string
+  }
 }
 
 export interface SatisfiesRelationship extends BaseRelationship {
-  type: RelationshipType.SATISFIES;
+  type: RelationshipType.SATISFIES
   properties?: {
-    criteriaId?: string;
-  };
+    criteriaId?: string
+  }
 }
 
 export interface FailsToSatisfyRelationship extends BaseRelationship {
-  type: RelationshipType.FAILS_TO_SATISFY;
+  type: RelationshipType.FAILS_TO_SATISFY
   properties?: {
-    gaps?: string;
-  };
+    gaps?: string
+  }
 }
 
 export interface SupersedesRelationship extends BaseRelationship {
-  type: RelationshipType.SUPERSEDES;
+  type: RelationshipType.SUPERSEDES
   properties?: {
-    reason?: string;
-    date?: string;
-  };
+    reason?: string
+    date?: string
+  }
 }
 
 export interface ImplementsRelationship extends BaseRelationship {
-  type: RelationshipType.IMPLEMENTS;
+  type: RelationshipType.IMPLEMENTS
   properties?: {
-    coverage?: string;
-  };
+    coverage?: string
+  }
 }
 
 export interface AppliedInRelationship extends BaseRelationship {
-  type: RelationshipType.APPLIED_IN;
+  type: RelationshipType.APPLIED_IN
   properties?: {
-    context?: string;
-  };
+    context?: string
+  }
+}
+
+export interface RelatesToRelationship extends BaseRelationship {
+  type: RelationshipType.RELATES_TO
+  properties?: {
+    scope?: string
+    evaluatedAt?: string
+  }
+}
+
+export interface CausedByRelationship extends BaseRelationship {
+  type: RelationshipType.CAUSED_BY
+  properties?: {
+    rootCause?: 'CONTROL_GAP' | 'NON_COMPLIANCE' | 'UNKNOWN'
+    analysis?: string
+  }
+}
+
+export interface InvolvedStepRelationship extends BaseRelationship {
+  type: RelationshipType.INVOLVED_STEP
+  properties?: {
+    wasFollowed?: boolean
+    deviation?: string
+  }
 }
 
 export type Relationship =
@@ -128,4 +155,8 @@ export type Relationship =
   | FailsToSatisfyRelationship
   | SupersedesRelationship
   | ImplementsRelationship
-  | AppliedInRelationship;
+  | AppliedInRelationship
+  | RelatesToRelationship
+  | CausedByRelationship
+  | InvolvedStepRelationship
+

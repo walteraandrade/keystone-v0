@@ -1,21 +1,28 @@
 import { config } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import type { DocumentType } from '../../domain/entities/Document.js';
+import type { EmbeddingService } from '../vector/EmbeddingService.js';
 import { TokenSplitter } from './TokenSplitter.js';
-import type { TokenizedChunk } from './types.js';
+import type { TokenizedChunk, SegmentationOptions } from './types.js';
 import type { SemanticSegmentationStrategy } from './strategies/SemanticSegmentationStrategy.js';
 import { FMEASegmentationStrategy } from './strategies/FMEASegmentationStrategy.js';
 import { IPARSegmentationStrategy } from './strategies/IPARSegmentationStrategy.js';
+import { HIRASegmentationStrategy } from './strategies/HIRASegmentationStrategy.js';
+import { AlertSegmentationStrategy } from './strategies/AlertSegmentationStrategy.js';
+import { FPSSegmentationStrategy } from './strategies/FPSSegmentationStrategy.js';
 import { GenericSegmentationStrategy } from './strategies/GenericSegmentationStrategy.js';
 
 export class SemanticChunker {
   private strategies: Map<DocumentType, SemanticSegmentationStrategy>;
   private tokenSplitter: TokenSplitter;
 
-  constructor() {
+  constructor(embeddingService?: EmbeddingService) {
     this.strategies = new Map<DocumentType, SemanticSegmentationStrategy>([
       ['fmea', new FMEASegmentationStrategy()],
       ['ipar', new IPARSegmentationStrategy()],
+      ['hira', new HIRASegmentationStrategy()],
+      ['alert', new AlertSegmentationStrategy()],
+      ['fps', new FPSSegmentationStrategy()],
       ['generic', new GenericSegmentationStrategy()],
     ]);
 
@@ -25,11 +32,11 @@ export class SemanticChunker {
     );
   }
 
-  chunk(content: string, documentType: DocumentType): TokenizedChunk[] {
-    logger.debug({ documentType }, 'Starting semantic chunking');
+  async chunk(content: string, documentType: DocumentType, options?: SegmentationOptions): Promise<TokenizedChunk[]> {
+    logger.debug({ documentType, hasStructuredElements: !!options?.structuredElements }, 'Starting semantic chunking');
 
     const strategy = this.strategies.get(documentType) || this.strategies.get('generic')!;
-    const segments = strategy.segment(content);
+    const segments = await strategy.segment(content, options);
 
     logger.debug({ documentType, segmentCount: segments.length }, 'Phase 1: Semantic segmentation complete');
 

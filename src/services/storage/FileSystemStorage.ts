@@ -25,12 +25,12 @@ export class FileSystemStorage implements DocumentStorage {
 
   async store(fileName: string, content: Buffer): Promise<StoredDocument> {
     try {
-      const hash = createHash('sha256').update(content).digest('hex');
+      const hash = createHash('sha256').update(new Uint8Array(content)).digest('hex');
       const timestamp = Date.now();
       const sanitizedName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
       const storagePath = join(this.basePath, `${timestamp}_${hash.substring(0, 8)}_${sanitizedName}`);
 
-      await writeFile(storagePath, content);
+      await writeFile(storagePath, new Uint8Array(content));
 
       logger.debug({ fileName, path: storagePath, size: content.length }, 'Document stored');
 

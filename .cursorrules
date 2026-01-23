@@ -151,3 +151,5 @@ src/
 - `src/services/graph/Neo4jRepository.ts` - Graph persistence
 - `src/services/query/HybridQueryService.ts` - Hybrid query coordination
 - `docs/ARCHITECTURE.md` - System overview and design decisions
+
+

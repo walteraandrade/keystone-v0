@@ -85,4 +85,9 @@ export interface GraphRepository {
   rollback(tx: Transaction): Promise<void>;
 
   deleteFailedDocumentsOlderThan(hours: number): Promise<number>;
+
+  executeQuery<T = Record<string, unknown>>(
+    query: string,
+    parameters?: Record<string, unknown>
+  ): Promise<T[]>;
 }

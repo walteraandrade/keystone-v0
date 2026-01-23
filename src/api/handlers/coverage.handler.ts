@@ -8,6 +8,8 @@ interface CoverageParams {
 
 interface CoverageQuerystring {
   threshold?: number;
+  documentId?: string;
+  iparId?: string;
 }
 
 export function createCoverageHandler(coverageRegistry: CoverageQueryRegistry) {
@@ -17,18 +19,22 @@ export function createCoverageHandler(coverageRegistry: CoverageQueryRegistry) {
   ) => {
     try {
       const { queryName } = request.params;
-      const { threshold } = request.query;
+      const { threshold, documentId, iparId } = request.query;
 
-      logger.debug({ queryName, threshold }, 'Coverage query requested');
+      logger.debug({ queryName, threshold, documentId, iparId }, 'Coverage query requested');
 
-      const params = threshold !== undefined ? { threshold } : undefined;
-      const result = await coverageRegistry.execute(queryName, params);
+      const params: Record<string, unknown> = {};
+      if (threshold !== undefined) params.threshold = threshold;
+      if (documentId !== undefined) params.documentId = documentId;
+      if (iparId !== undefined) params.iparId = iparId;
+
+      const result = await coverageRegistry.execute(queryName, Object.keys(params).length > 0 ? params : undefined);
 
       return reply.code(200).send(result);
     } catch (error) {
       logger.error({ error }, 'Coverage handler error');
 
-      if (error instanceof Error && error.message.includes('Unknown coverage query')) {
+      if (error instanceof Error && (error.message.includes('Unknown coverage query') || error.message.includes('parameter is required'))) {
         return reply.code(400).send({
           error: 'BAD_REQUEST',
           message: error.message,

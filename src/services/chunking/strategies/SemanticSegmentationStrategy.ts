@@ -1,5 +1,5 @@
-import type { SemanticSegment } from '../types.js';
+import type { SemanticSegment, SegmentationOptions } from '../types.js';
 
 export interface SemanticSegmentationStrategy {
-  segment(content: string): SemanticSegment[];
+  segment(content: string, options?: SegmentationOptions): Promise<SemanticSegment[]>;
 }

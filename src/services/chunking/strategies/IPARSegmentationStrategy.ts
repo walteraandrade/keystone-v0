@@ -1,176 +1,251 @@
-import type { SemanticSegment } from '../types.js';
+import type { SemanticSegment, SegmentationOptions } from '../types.js';
 import type { SemanticSegmentationStrategy } from './SemanticSegmentationStrategy.js';
+import { logger } from '../../../utils/logger.js';
+
+const HAZARD_KEYWORDS = [
+  'ruído', 'vibração', 'queda', 'atropelamento', 'aprisionamento',
+  'projeção', 'queimadura', 'choque', 'esmagamento', 'exposição',
+  'inalação', 'contato', 'corte', 'perfuração', 'explosão',
+  'incêndio', 'intoxicação', 'radiação', 'ergonômico', 'ergonomico',
+  'temperatura', 'pressão', 'elétrico', 'eletrico', 'químico', 'quimico',
+  'biológico', 'biologico', 'mecânico', 'mecanico', 'físico', 'fisico',
+];
+
+const CLASSIFICATION_KEYWORDS = ['intolerável', 'intoleravel', 'moderado', 'trivial', 'tolerável', 'toleravel'];
+
+interface HeaderInfo {
+  process: string;
+  unit: string;
+  code: string;
+  elaborator: string;
+  rawText: string;
+}
+
+interface HazardBlock {
+  text: string;
+  startLine: number;
+  endLine: number;
+}
+
+const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
 
 export class IPARSegmentationStrategy implements SemanticSegmentationStrategy {
-  segment(content: string): SemanticSegment[] {
+  async segment(content: string, _options?: SegmentationOptions): Promise<SemanticSegment[]> {
     const segments: SemanticSegment[] = [];
 
-    const auditHeader = this.extractAuditHeader(content);
-    if (auditHeader) {
-      segments.push(auditHeader);
+    const { header, headerSegment, bodyContent, bodyStartLine } = this.extractHeader(content);
+    if (headerSegment) {
+      segments.push(headerSegment);
     }
 
-    const findingBlocks = this.extractFindingBlocks(content);
-    segments.push(...findingBlocks);
+    const hazardBlocks = this.splitIntoHazardBlocks(bodyContent, bodyStartLine);
+    logger.debug({ blockCount: hazardBlocks.length }, 'IPAR hazard blocks detected');
 
-    const requirements = this.extractRequirements(content);
-    segments.push(...requirements);
-
-    if (segments.length === 0) {
-      return this.fallbackSegmentation(content);
+    if (hazardBlocks.length === 0) {
+      logger.warn('No hazard blocks detected, using fallback segmentation');
+      segments.push(...this.fallbackSegmentation(bodyContent, header));
+      return segments;
     }
 
+    for (const block of hazardBlocks) {
+      const segment = this.createHazardSegment(block, header);
+      if (segment) {
+        segments.push(segment);
+      }
+    }
+
+    logger.debug({ segmentCount: segments.length }, 'IPAR hazard-block segmentation complete');
     return segments;
   }
 
-  private extractAuditHeader(content: string): SemanticSegment | null {
-    const headerPatterns = [
-      /(?:auditoria|audit|inspeção|inspection)[\s\S]{0,500}?(?:data|date|auditor|scope|escopo)/i,
-      /^[\s\S]{0,500}?(?:data|date).*?(?:auditor|auditado|scope|escopo)/im,
-    ];
+  private extractHeader(content: string): { header: HeaderInfo; headerSegment: SemanticSegment | null; bodyContent: string; bodyStartLine: number } {
+    const defaultHeader: HeaderInfo = {
+      process: 'Desconhecido',
+      unit: 'Desconhecida',
+      code: '',
+      elaborator: '',
+      rawText: '',
+    };
 
-    for (const pattern of headerPatterns) {
-      const match = content.match(pattern);
-      if (match) {
-        const headerEnd = match.index! + match[0].length;
-        const nextSectionStart = content.indexOf('\n\n', headerEnd);
-        const headerText = content.substring(
-          match.index!,
-          nextSectionStart > 0 ? nextSectionStart : Math.min(headerEnd + 300, content.length)
-        );
+    const headerPatterns = {
+      process: /(?:processo|process)[:\s]*([^\n]+)/i,
+      unit: /(?:unidade|unit)[:\s]*([^\n]+)/i,
+      code: /(?:código|codigo|code)[:\s]*([^\n]+)/i,
+      elaborator: /(?:elaborador|elaborado por|autor|author)[:\s]*([^\n]+)/i,
+    };
 
-        return {
-          text: headerText.trim(),
+    const lines = content.split('\n');
+    let headerEndIndex = 0;
+    const headerLines: string[] = [];
+
+    for (let i = 0; i < Math.min(lines.length, 30); i++) {
+      const line = lines[i];
+      headerLines.push(line);
+
+      const processMatch = line.match(headerPatterns.process);
+      if (processMatch) defaultHeader.process = processMatch[1].trim();
+
+      const unitMatch = line.match(headerPatterns.unit);
+      if (unitMatch) defaultHeader.unit = unitMatch[1].trim();
+
+      const codeMatch = line.match(headerPatterns.code);
+      if (codeMatch) defaultHeader.code = codeMatch[1].trim();
+
+      const elaboratorMatch = line.match(headerPatterns.elaborator);
+      if (elaboratorMatch) defaultHeader.elaborator = elaboratorMatch[1].trim();
+
+      if (this.isHazardBoundary(line) && i > 5) {
+        headerEndIndex = i;
+        break;
+      }
+
+      if (i === Math.min(lines.length - 1, 29)) {
+        headerEndIndex = i + 1;
+      }
+    }
+
+    defaultHeader.rawText = headerLines.slice(0, headerEndIndex).join('\n');
+
+    const headerSegment: SemanticSegment | null = defaultHeader.rawText.trim().length > 50
+      ? {
+          text: defaultHeader.rawText.trim(),
           semanticType: 'ipar_audit_header',
-          context: 'Audit Header',
+          context: `IPAR: ${defaultHeader.process}`,
           sourceReference: {
-            section: 'Audit Metadata',
-            lineRange: [1, headerText.split('\n').length],
+            section: 'Cabeçalho',
+            lineRange: [1, headerEndIndex],
           },
-        };
+        }
+      : null;
+
+    const bodyContent = lines.slice(headerEndIndex).join('\n');
+    const bodyStartLine = headerEndIndex + 1;
+
+    return { header: defaultHeader, headerSegment, bodyContent, bodyStartLine };
+  }
+
+  private splitIntoHazardBlocks(content: string, startLineOffset: number): HazardBlock[] {
+    const lines = content.split('\n');
+    const blocks: HazardBlock[] = [];
+    let currentBlock: string[] = [];
+    let blockStartLine = startLineOffset;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const isHazardStart = this.isHazardBoundary(line);
+
+      if (isHazardStart && currentBlock.length > 3) {
+        const blockText = currentBlock.join('\n').trim();
+        if (blockText.length > 50) {
+          blocks.push({
+            text: blockText,
+            startLine: blockStartLine,
+            endLine: startLineOffset + i - 1,
+          });
+        }
+        currentBlock = [];
+        blockStartLine = startLineOffset + i;
+      }
+
+      currentBlock.push(line);
+    }
+
+    if (currentBlock.length > 0) {
+      const blockText = currentBlock.join('\n').trim();
+      if (blockText.length > 50) {
+        blocks.push({
+          text: blockText,
+          startLine: blockStartLine,
+          endLine: startLineOffset + lines.length - 1,
+        });
+      }
+    }
+
+    return blocks;
+  }
+
+  private isHazardBoundary(line: string): boolean {
+    const lower = line.toLowerCase().trim();
+    if (lower.length < 3) return false;
+
+    const numberedItemPattern = /^(?:item\s*:?\s*)?\d+[\s.:]+\w+/i;
+    if (numberedItemPattern.test(lower)) {
+      return true;
+    }
+
+    for (const kw of HAZARD_KEYWORDS) {
+      const idx = lower.indexOf(kw);
+      if (idx >= 0 && idx < 40) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private createHazardSegment(block: HazardBlock, header: HeaderInfo): SemanticSegment | null {
+    const hazardType = this.detectHazardType(block.text);
+    const classification = this.detectClassification(block.text);
+
+    const contextParts = [`Processo: ${header.process}`, `Unidade: ${header.unit}`];
+    const enrichedText = [
+      contextParts.join(' | '),
+      `Perigo: ${hazardType}${classification ? ` | Classificação: ${classification}` : ''}`,
+      '',
+      block.text,
+    ].join('\n');
+
+    if (estimateTokens(enrichedText) < 20) {
+      return null;
+    }
+
+    return {
+      text: enrichedText,
+      semanticType: 'ipar_hazard_block',
+      context: `Perigo: ${hazardType}${classification ? ` (${classification})` : ''}`,
+      sourceReference: {
+        section: header.process,
+        lineRange: [block.startLine, block.endLine],
+      },
+    };
+  }
+
+  private detectHazardType(block: string): string {
+    const lower = block.toLowerCase();
+
+    for (const kw of HAZARD_KEYWORDS) {
+      if (lower.includes(kw)) {
+        return kw.charAt(0).toUpperCase() + kw.slice(1);
+      }
+    }
+
+    return 'Não identificado';
+  }
+
+  private detectClassification(block: string): string | null {
+    const lower = block.toLowerCase();
+
+    for (const kw of CLASSIFICATION_KEYWORDS) {
+      if (lower.includes(kw)) {
+        return kw.charAt(0).toUpperCase() + kw.slice(1);
       }
     }
 
     return null;
   }
 
-  private extractFindingBlocks(content: string): SemanticSegment[] {
-    const segments: SemanticSegment[] = [];
-    const findingPatterns = [
-      /(?:finding|achado|constatação|nc|não conformidade)\s*[:#]?\s*([A-Z0-9-]+)/gi,
-      /(?:f|nc|ac)-?\d{2,4}/gi,
-    ];
-
-    const MAX_ITERATIONS = 1000;
-
-    for (const pattern of findingPatterns) {
-      pattern.lastIndex = 0;
-      let match;
-      let iterations = 0;
-      let lastIndex = -1;
-
-      while ((match = pattern.exec(content)) !== null) {
-        if (++iterations > MAX_ITERATIONS) break;
-        if (pattern.lastIndex === lastIndex) {
-          pattern.lastIndex++;
-          continue;
-        }
-        lastIndex = pattern.lastIndex;
-
-        const findingCode = match[1] || match[0];
-        const startPos = match.index;
-
-        const remainingContent = content.substring(startPos + match[0].length);
-        const simpleEndPattern = /\n\n\n/;
-        const tripleNewline = remainingContent.match(simpleEndPattern);
-        const endPos = tripleNewline
-          ? startPos + match[0].length + tripleNewline.index!
-          : Math.min(startPos + 2000, content.length);
-
-        const findingText = content.substring(startPos, endPos).trim();
-
-        if (findingText.length > 50) {
-          const lines = findingText.split('\n').length;
-          segments.push({
-            text: findingText,
-            semanticType: 'ipar_finding',
-            context: `Finding: ${findingCode}`,
-            sourceReference: {
-              section: `Finding: ${findingCode}`,
-              lineRange: [this.getLineNumber(content, startPos), this.getLineNumber(content, startPos) + lines],
-            },
-          });
-        }
-      }
-    }
-
-    return segments;
-  }
-
-  private extractRequirements(content: string): SemanticSegment[] {
-    const segments: SemanticSegment[] = [];
-    const requirementPatterns = [
-      /(?:requirement|requisito|norma|standard)\s*[:#]?\s*([A-Z0-9.-]+)/gi,
-      /(?:ISO|ASME|API|ABNT)\s*\d+/gi,
-    ];
-
-    const MAX_ITERATIONS = 1000;
-
-    for (const pattern of requirementPatterns) {
-      pattern.lastIndex = 0;
-      let match;
-      let iterations = 0;
-      let lastIndex = -1;
-
-      while ((match = pattern.exec(content)) !== null) {
-        if (++iterations > MAX_ITERATIONS) break;
-        if (pattern.lastIndex === lastIndex) {
-          pattern.lastIndex++;
-          continue;
-        }
-        lastIndex = pattern.lastIndex;
-
-        const reqCode = match[1] || match[0];
-        const startPos = match.index;
-
-        const contextStart = Math.max(0, startPos - 100);
-        const contextEnd = Math.min(content.length, startPos + match[0].length + 400);
-        const reqText = content.substring(contextStart, contextEnd).trim();
-
-        if (reqText.length > 30) {
-          const lines = reqText.split('\n').length;
-          segments.push({
-            text: reqText,
-            semanticType: 'ipar_requirement',
-            context: `Requirement: ${reqCode}`,
-            sourceReference: {
-              section: `Requirement: ${reqCode}`,
-              lineRange: [this.getLineNumber(content, contextStart), this.getLineNumber(content, contextStart) + lines],
-            },
-          });
-        }
-      }
-    }
-
-    return segments;
-  }
-
-  private fallbackSegmentation(content: string): SemanticSegment[] {
+  private fallbackSegmentation(content: string, header: HeaderInfo): SemanticSegment[] {
     const paragraphs = content.split(/\n\n+/);
     return paragraphs
       .filter(p => p.trim().length > 50)
       .map((para, idx) => ({
-        text: para.trim(),
+        text: `Processo: ${header.process} | Unidade: ${header.unit}\n\n${para.trim()}`,
         semanticType: 'ipar_paragraph',
-        context: `Paragraph ${idx + 1}`,
+        context: `Parágrafo ${idx + 1}`,
         sourceReference: {
-          section: 'IPAR Document',
+          section: header.process,
           lineRange: [idx * 5, idx * 5 + para.split('\n').length],
         },
       }));
-  }
-
-  private getLineNumber(content: string, position: number): number {
-    return content.substring(0, position).split('\n').length;
   }
 }

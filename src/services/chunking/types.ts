@@ -1,3 +1,15 @@
+export interface PDFElement {
+  type: 'Title' | 'NarrativeText' | 'ListItem' | 'Table';
+  text: string;
+  page: number;
+  rows?: number;
+  cols?: number;
+}
+
+export interface SegmentationOptions {
+  structuredElements?: PDFElement[];
+}
+
 export interface SemanticSegment {
   text: string;
   semanticType: string;
@@ -5,6 +17,7 @@ export interface SemanticSegment {
   sourceReference: {
     section: string;
     lineRange?: [number, number];
+    page?: number;
   };
 }
 

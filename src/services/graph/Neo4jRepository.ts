@@ -1,10 +1,10 @@
-import neo4j, { Driver, Session, Result } from 'neo4j-driver';
+import neo4j, { Driver, Session } from 'neo4j-driver';
 import { config } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import { GraphPersistenceError } from '../../utils/errors.js';
 import { generateId } from '../../utils/uuid.js';
 import type { Entity } from '../../domain/entities/index.js';
-import type { Relationship, RelationshipType, RelationshipStatus } from '../../domain/relationships/types.js';
+import type { Relationship, RelationshipType } from '../../domain/relationships/types.js';
 import type { Provenance, SourceReference } from '../../domain/entities/base/Provenance.js';
 import type { GraphRepository, Transaction, AuditSummary } from './GraphRepository.interface.js';
 
@@ -15,13 +15,7 @@ export class Neo4jRepository implements GraphRepository {
     try {
       this.driver = neo4j.driver(
         config.neo4j.uri,
-        neo4j.auth.basic(config.neo4j.user, config.neo4j.password),
-        {
-          maxConnectionLifetime: 30 * 60 * 1000,
-          maxConnectionPoolSize: 50,
-          connectionAcquisitionTimeout: 30 * 1000,
-          connectionTimeout: 30 * 1000,
-        }
+        neo4j.auth.basic(config.neo4j.user, config.neo4j.password)
       );
       await this.driver.verifyConnectivity();
       logger.info('Connected to Neo4j');
@@ -56,18 +50,6 @@ export class Neo4jRepository implements GraphRepository {
     return this.driver.session();
   }
 
-  private async runWithTimeout(
-    session: Session,
-    query: string,
-    params: Record<string, unknown> = {},
-    timeoutMs = 30000
-  ): Promise<Result> {
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new GraphPersistenceError(`Query timeout after ${timeoutMs}ms`)), timeoutMs);
-    });
-    return Promise.race([session.run(query, params), timeoutPromise]);
-  }
-
   async createEntity<T extends Entity>(entity: T): Promise<string> {
     const session = this.getSession();
     try {
@@ -77,7 +59,7 @@ export class Neo4jRepository implements GraphRepository {
         CREATE (e:${entity.type}:Entity $props)
         RETURN e.id as id
       `;
-      const result = await this.runWithTimeout(session,query, { props: entityProps });
+      const result = await session.run(query, { props: entityProps });
       const id = result.records[0]?.get('id');
       if (!id) {
         throw new GraphPersistenceError('Failed to create entity');
@@ -86,7 +68,7 @@ export class Neo4jRepository implements GraphRepository {
       for (const prov of provenance || []) {
         const extractionId = generateId('ext');
 
-        await this.runWithTimeout(session,`
+        await session.run(`
           CREATE (ex:Extraction {
             id: $extractionId,
             sourceDocumentId: $sourceDocumentId,
@@ -110,13 +92,13 @@ export class Neo4jRepository implements GraphRepository {
           lineRangeEnd: prov.sourceReference.lineRange?.[1] ?? null,
         });
 
-        await this.runWithTimeout(session,`
+        await session.run(`
           MATCH (e:Entity {id: $entityId})
           MATCH (ex:Extraction {id: $extractionId})
           CREATE (e)-[:EXTRACTED_FROM]->(ex)
         `, { entityId: id, extractionId });
 
-        await this.runWithTimeout(session,`
+        await session.run(`
           MATCH (ex:Extraction {id: $extractionId})
           MATCH (doc:Document {id: $sourceDocumentId})
           CREATE (ex)-[:SOURCED_FROM]->(doc)
@@ -141,7 +123,7 @@ export class Neo4jRepository implements GraphRepository {
         OPTIONAL MATCH (e)-[:EXTRACTED_FROM]->(ex:Extraction)
         RETURN e, collect(ex) as extractions
       `;
-      const result = await this.runWithTimeout(session,query, { id });
+      const result = await session.run(query, { id });
       if (result.records.length === 0) {
         return null;
       }
@@ -177,16 +159,12 @@ export class Neo4jRepository implements GraphRepository {
   async updateEntity<T extends Entity>(id: string, updates: Partial<T>): Promise<void> {
     const session = this.getSession();
     try {
-      const updatesWithTimestamp = {
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      };
       const query = `
         MATCH (e:Entity {id: $id})
-        SET e += $updates
+        SET e += $updates, e.updatedAt = datetime()
         RETURN e
       `;
-      const result = await this.runWithTimeout(session, query, { id, updates: updatesWithTimestamp });
+      const result = await session.run(query, { id, updates });
       if (result.records.length === 0) {
         throw new GraphPersistenceError(`Entity not found: ${id}`);
       }
@@ -206,7 +184,7 @@ export class Neo4jRepository implements GraphRepository {
         MATCH (e:Entity {id: $id})
         DETACH DELETE e
       `;
-      await this.runWithTimeout(session,query, { id });
+      await session.run(query, { id });
       logger.debug({ id }, 'Deleted entity');
     } catch (error) {
       logger.error({ id, error }, 'Failed to delete entity');
@@ -267,20 +245,20 @@ export class Neo4jRepository implements GraphRepository {
           `;
           params = { code: (candidate as any).code };
           break;
-        case 'ProcedureStep':
+        case 'Incident':
           query = `
-            MATCH (ps:ProcedureStep {stepNumber: $stepNumber, processId: $processId})
-            WHERE NOT (ps)-[:SUPERSEDES]->()
-            RETURN ps.id as id
+            MATCH (i:Incident {code: $code})
+            WHERE NOT (i)-[:SUPERSEDES]->()
+            RETURN i.id as id
             LIMIT 1
           `;
-          params = { stepNumber: (candidate as any).stepNumber, processId: (candidate as any).processId };
+          params = { code: (candidate as any).code };
           break;
         default:
           return null;
       }
 
-      const result = await this.runWithTimeout(session,query, params);
+      const result = await session.run(query, params);
       return result.records.length > 0 ? result.records[0].get('id') : null;
     } catch (error) {
       logger.error({ candidate, error }, 'Failed to find duplicate entity');
@@ -290,7 +268,7 @@ export class Neo4jRepository implements GraphRepository {
     }
   }
 
-  async createRelationship( // status param added
+  async createRelationship(
     from: string,
     to: string,
     type: RelationshipType,
@@ -300,15 +278,14 @@ export class Neo4jRepository implements GraphRepository {
       sourceDocumentId: string;
       extractedBy: string;
     },
-    properties?: Record<string, unknown>,
-    status?: RelationshipStatus
+    properties?: Record<string, unknown>
   ): Promise<void> {
     const session = this.getSession();
     try {
       const sr = sourceReference as SourceReference;
       const extractionId = generateId('ext');
 
-      await this.runWithTimeout(session,`
+      await session.run(`
         CREATE (ex:Extraction {
           id: $extractionId,
           sourceDocumentId: $sourceDocumentId,
@@ -332,7 +309,7 @@ export class Neo4jRepository implements GraphRepository {
         lineRangeEnd: sr.lineRange?.[1] ?? null,
       });
 
-      await this.runWithTimeout(session,`
+      await session.run(`
         MATCH (ex:Extraction {id: $extractionId})
         MATCH (doc:Document {id: $sourceDocumentId})
         CREATE (ex)-[:SOURCED_FROM]->(doc)
@@ -342,7 +319,6 @@ export class Neo4jRepository implements GraphRepository {
         confidence,
         extractionId,
         ...properties,
-        ...(status && { status }),
       };
 
       const query = `
@@ -351,7 +327,7 @@ export class Neo4jRepository implements GraphRepository {
         CREATE (a)-[r:${type} $props]->(b)
         RETURN r
       `;
-      const result = await this.runWithTimeout(session,query, { from, to, props: relProps });
+      const result = await session.run(query, { from, to, props: relProps });
       if (result.records.length === 0) {
         throw new GraphPersistenceError('Failed to create relationship');
       }
@@ -391,7 +367,7 @@ export class Neo4jRepository implements GraphRepository {
           MATCH (to {id: $to})
           CREATE (from)-[r:${rel.type} {confidence: $confidence}]->(to)
         `;
-        await this.runWithTimeout(session,query, {
+        await session.run(query, {
           from: rel.from,
           to: rel.to,
           confidence: rel.confidence,
@@ -437,7 +413,7 @@ export class Neo4jRepository implements GraphRepository {
           break;
       }
 
-      const result = await this.runWithTimeout(session,query, { entityId });
+      const result = await session.run(query, { entityId });
       return result.records.map(record => {
         const rel = record.get('rel').properties;
         const ex = record.get('ex')?.properties;
@@ -488,7 +464,7 @@ export class Neo4jRepository implements GraphRepository {
           count(DISTINCT f) as findingCount
       `;
 
-      const result = await this.runWithTimeout(session,query, { auditId });
+      const result = await session.run(query, { auditId });
       if (result.records.length === 0) {
         throw new GraphPersistenceError(`Audit not found: ${auditId}`);
       }
@@ -544,7 +520,7 @@ export class Neo4jRepository implements GraphRepository {
         LIMIT $limit
       `;
 
-      const result = await this.runWithTimeout(session,query, { ...properties, limit: neo4j.int(limit) });
+      const result = await session.run(query, { ...properties, limit: neo4j.int(limit) });
       return result.records.map(record => {
         const entityProps = record.get('n').properties;
         const extractions = record.get('extractions');
@@ -585,7 +561,7 @@ export class Neo4jRepository implements GraphRepository {
         RETURN n, collect(ex) as extractions
       `;
 
-      const result = await this.runWithTimeout(session,query, { ids });
+      const result = await session.run(query, { ids });
       return result.records.map(record => {
         const entityProps = record.get('n').properties;
         const extractions = record.get('extractions');
@@ -641,7 +617,7 @@ export class Neo4jRepository implements GraphRepository {
                r, relEx
       `;
 
-      const result = await this.runWithTimeout(session,query, { entityIds });
+      const result = await session.run(query, { entityIds });
 
       const entities = new Map<string, Entity>();
       const relationships: Relationship[] = [];
@@ -756,36 +732,56 @@ export class Neo4jRepository implements GraphRepository {
   async deleteFailedDocumentsOlderThan(hours: number): Promise<number> {
     const session = this.getSession();
     try {
-      const threshold = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
-      const result = await this.runWithTimeout(session, `
-        MATCH (d:Document {status: 'FAILED'})
-        WHERE d.updatedAt < $threshold
-        OPTIONAL MATCH (ex:Extraction)-[:SOURCED_FROM]->(d)
-        DETACH DELETE ex, d
-        RETURN count(DISTINCT d) as deleted
-      `, { threshold });
-      return result.records[0]?.get('deleted')?.toNumber() || 0;
+      const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+      const query = `
+        MATCH (d:Document {status: 'failed'})
+        WHERE d.uploadedAt < $cutoff
+        DETACH DELETE d
+        RETURN count(d) as deleted
+      `;
+      const result = await session.run(query, { cutoff });
+      const deleted = result.records[0]?.get('deleted')?.toNumber?.() || 0;
+      logger.info({ deleted, olderThanHours: hours }, 'Deleted failed documents');
+      return deleted;
+    } catch (error) {
+      logger.error({ hours, error }, 'Failed to delete failed documents');
+      throw new GraphPersistenceError('Failed document cleanup failed', error);
     } finally {
       await session.close();
     }
   }
 
-  async runCoverageQuery(query: string, params?: Record<string, unknown>): Promise<Entity[]> {
+  async executeQuery<T = Record<string, unknown>>(
+    query: string,
+    parameters: Record<string, unknown> = {}
+  ): Promise<T[]> {
     const session = this.getSession();
     try {
-      const result = await this.runWithTimeout(session, query, params || {});
+      const processedParams: Record<string, unknown> = { ...parameters };
+      if ('limit' in processedParams && typeof processedParams.limit === 'number') {
+        processedParams.limit = neo4j.int(processedParams.limit);
+      }
+      if ('offset' in processedParams && typeof processedParams.offset === 'number') {
+        processedParams.offset = neo4j.int(processedParams.offset);
+      }
+      const result = await session.run(query, processedParams);
       return result.records.map(record => {
-        const node = record.get(0);
-        const props = node.properties;
-        return {
-          id: props.id,
-          type: node.labels.find((l: string) => l !== 'Entity') || props.type,
-          createdAt: props.createdAt,
-          updatedAt: props.updatedAt,
-          provenance: [],
-          ...props,
-        } as Entity;
+        const obj: Record<string, unknown> = {};
+        record.keys.forEach(key => {
+          const value = record.get(key);
+          if (neo4j.isInt(value)) {
+            obj[key] = value.toNumber();
+          } else if (value && typeof value === 'object' && 'properties' in value) {
+            obj[key] = (value as any).properties;
+          } else {
+            obj[key] = value;
+          }
+        });
+        return obj as T;
       });
+    } catch (error) {
+      logger.error({ query, parameters, error }, 'Query execution failed');
+      throw new GraphPersistenceError('Query execution failed', error);
     } finally {
       await session.close();
     }

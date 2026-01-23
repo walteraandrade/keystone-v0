@@ -19,6 +19,18 @@ import {
   IPAR_EXTRACTION_SYSTEM_PROMPT,
   IPAR_EXTRACTION_USER_PROMPT,
 } from "./prompts/ipar-extraction.js";
+import {
+  FPS_EXTRACTION_SYSTEM_PROMPT,
+  FPS_EXTRACTION_USER_PROMPT,
+} from "./prompts/fps-extraction.js";
+import {
+  HIRA_EXTRACTION_SYSTEM_PROMPT,
+  HIRA_EXTRACTION_USER_PROMPT,
+} from "./prompts/hira-extraction.js";
+import {
+  ALERT_EXTRACTION_SYSTEM_PROMPT,
+  ALERT_EXTRACTION_USER_PROMPT,
+} from "./prompts/alert-extraction.js";
 import { OpenAIClientFactory } from "./OpenAIClientFactory.js";
 
 export class OpenAILLMService implements LLMService {
@@ -102,6 +114,30 @@ export class OpenAILLMService implements LLMService {
         return {
           systemPrompt: IPAR_EXTRACTION_SYSTEM_PROMPT,
           userPrompt: IPAR_EXTRACTION_USER_PROMPT(
+            request.content,
+            request.metadata,
+          ),
+        };
+      case "fps":
+        return {
+          systemPrompt: FPS_EXTRACTION_SYSTEM_PROMPT,
+          userPrompt: FPS_EXTRACTION_USER_PROMPT(
+            request.content,
+            request.metadata,
+          ),
+        };
+      case "hira":
+        return {
+          systemPrompt: HIRA_EXTRACTION_SYSTEM_PROMPT,
+          userPrompt: HIRA_EXTRACTION_USER_PROMPT(
+            request.content,
+            request.metadata,
+          ),
+        };
+      case "alert":
+        return {
+          systemPrompt: ALERT_EXTRACTION_SYSTEM_PROMPT,
+          userPrompt: ALERT_EXTRACTION_USER_PROMPT(
             request.content,
             request.metadata,
           ),

@@ -22,6 +22,30 @@ import type { GraphRepository } from '../services/graph/GraphRepository.interfac
 import type { HybridQueryService } from '../services/query/HybridQueryService.js';
 import type { CleanupService } from '../services/ingestion/CleanupService.js';
 import type { CoverageQueryRegistry } from '../services/query/CoverageQueryRegistry.js';
+import type { AuditorAnalyticsService } from '../services/analytics/AuditorAnalyticsService.js';
+import {
+  createPortfolioAnalyticsHandler,
+  createRiskExposureHandler,
+  createControlEffectivenessHandler,
+  createFailureModeAnalysisHandler,
+  createFindingTrendsHandler,
+  createComplianceStatusHandler,
+  createProcessHealthHandler,
+  createCrossDocumentEntitiesHandler,
+  createDocumentCoverageHandler,
+  createSharedEntityNetworkHandler,
+  createEntityProvenanceHandler,
+  createFPSMaturityHandler,
+} from './handlers/auditor-analytics.handler.js';
+import {
+  portfolioAnalyticsResponseSchema,
+  riskExposureResponseSchema,
+  controlEffectivenessResponseSchema,
+  failureModeAnalysisResponseSchema,
+  findingTrendsResponseSchema,
+  complianceStatusResponseSchema,
+  processHealthResponseSchema,
+} from './schemas/auditor-analytics.schema.js';
 
 export async function registerRoutes(
   fastify: FastifyInstance,
@@ -29,7 +53,8 @@ export async function registerRoutes(
   graphRepo: GraphRepository,
   hybridQuery: HybridQueryService,
   cleanupService?: CleanupService,
-  coverageRegistry?: CoverageQueryRegistry
+  coverageRegistry?: CoverageQueryRegistry,
+  auditorAnalytics?: AuditorAnalyticsService
 ) {
   fastify.post('/ingest', {
     schema: {
@@ -95,6 +120,56 @@ export async function registerRoutes(
 
     fastify.get('/coverage/:queryName', {
       handler: createCoverageHandler(coverageRegistry),
+    });
+  }
+
+  if (auditorAnalytics) {
+    fastify.get('/analytics/audit/portfolio', {
+      handler: createPortfolioAnalyticsHandler(auditorAnalytics),
+    });
+
+    fastify.get('/analytics/audit/risk-exposure', {
+      handler: createRiskExposureHandler(auditorAnalytics),
+    });
+
+    fastify.get('/analytics/audit/control-effectiveness', {
+      handler: createControlEffectivenessHandler(auditorAnalytics),
+    });
+
+    fastify.get('/analytics/audit/failure-modes', {
+      handler: createFailureModeAnalysisHandler(auditorAnalytics),
+    });
+
+    fastify.get('/analytics/audit/findings', {
+      handler: createFindingTrendsHandler(auditorAnalytics),
+    });
+
+    fastify.get('/analytics/audit/compliance', {
+      handler: createComplianceStatusHandler(auditorAnalytics),
+    });
+
+    fastify.get('/analytics/audit/process-health', {
+      handler: createProcessHealthHandler(auditorAnalytics),
+    });
+
+    fastify.get('/analytics/audit/cross-document-entities', {
+      handler: createCrossDocumentEntitiesHandler(auditorAnalytics),
+    });
+
+    fastify.get('/analytics/audit/document-coverage', {
+      handler: createDocumentCoverageHandler(auditorAnalytics),
+    });
+
+    fastify.get('/analytics/audit/shared-network', {
+      handler: createSharedEntityNetworkHandler(auditorAnalytics),
+    });
+
+    fastify.get('/analytics/audit/provenance/:entityId', {
+      handler: createEntityProvenanceHandler(auditorAnalytics),
+    });
+
+    fastify.get('/analytics/audit/fps-maturity', {
+      handler: createFPSMaturityHandler(auditorAnalytics),
     });
   }
 }

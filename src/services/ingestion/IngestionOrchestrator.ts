@@ -41,7 +41,7 @@ export class IngestionOrchestrator {
     this.validationService = new ValidationService();
     this.deduplicationService = new DeduplicationService(graphRepo);
     this.embeddingService = new EmbeddingService();
-    this.semanticChunker = new SemanticChunker();
+    this.semanticChunker = new SemanticChunker(this.embeddingService);
   }
 
   async ingest(filePath: string, fileName: string, metadata: Record<string, unknown> = {}): Promise<IngestionResult> {
@@ -87,23 +87,6 @@ export class IngestionOrchestrator {
 
       this.validationService.validateExtraction(extraction);
       logger.info({ documentId }, 'Validation complete');
-
-      if (this.extractionLogger) {
-        const avgConfidence = extraction.entities.length > 0
-          ? extraction.entities.reduce((sum, e) => sum + e.confidence, 0) / extraction.entities.length
-          : 0;
-        this.extractionLogger.log({
-          documentId,
-          model: extraction.metadata.modelUsed,
-          timestamp: new Date().toISOString(),
-          rawOutput: JSON.stringify(extraction),
-          tokensUsed: extraction.metadata.tokensUsed || 0,
-          confidenceAvg: avgConfidence,
-          entityCount: extraction.entities.length,
-          relationshipCount: extraction.relationships.length,
-          status: 'SUCCESS',
-        });
-      }
 
       let entityCounts: Record<string, number> = {};
       let relationshipCount = 0;
@@ -181,6 +164,7 @@ export class IngestionOrchestrator {
         logger.info({ documentId, implicitRelCount }, 'Completed implicit relationship creation');
         relationshipCount += implicitRelCount;
 
+        logger.info({ documentId }, 'About to update entity status to PROCESSED');
         await this.graphRepo.updateEntity(documentId, { status: 'PROCESSED' });
         logger.info({ documentId, entityCounts, relationshipCount }, 'Graph persistence complete');
       } catch (error) {
@@ -190,7 +174,9 @@ export class IngestionOrchestrator {
 
       try {
         logger.info({ documentId }, 'Starting semantic chunking and embedding');
-        const allChunks = this.semanticChunker.chunk(processed.content, processed.type);
+        const allChunks = await this.semanticChunker.chunk(processed.content, processed.type, {
+          structuredElements: processed.structuredElements,
+        });
         const validChunks = allChunks.filter(c => c.text && c.text.trim().length > 0);
 
         if (validChunks.length === 0) {
@@ -234,6 +220,7 @@ export class IngestionOrchestrator {
             metadata: {
               startChar: chunk.metadata.startChar,
               endChar: chunk.metadata.endChar,
+              documentType: processed.type,
             },
           },
         }));

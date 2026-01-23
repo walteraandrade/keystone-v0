@@ -1,8 +1,8 @@
-import type { SemanticSegment } from '../types.js';
+import type { SemanticSegment, SegmentationOptions } from '../types.js';
 import type { SemanticSegmentationStrategy } from './SemanticSegmentationStrategy.js';
 
 export class FMEASegmentationStrategy implements SemanticSegmentationStrategy {
-  segment(content: string): SemanticSegment[] {
+  async segment(content: string, _options?: SegmentationOptions): Promise<SemanticSegment[]> {
     const segments: SemanticSegment[] = [];
     const sheetPattern = /--- Sheet: (.*?) ---/g;
     const sheets = content.split(sheetPattern);

@@ -1,6 +1,6 @@
 import type { BaseEntity } from './base/Entity.js';
 
-export type DocumentType = 'fmea' | 'ipar' | 'generic';
+export type DocumentType = 'fmea' | 'ipar' | 'hira' | 'alert' | 'fps' | 'generic';
 export type DocumentStatus = 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
 
 export interface Document extends BaseEntity {

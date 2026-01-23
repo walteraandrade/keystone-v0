@@ -236,7 +236,13 @@ export class HybridQueryService {
         const relationshipTypes = relationships.map(r => r.type);
 
         const expansion = await this.graphRepo.expandRelationships(entityIds, relationshipTypes);
-        entities = expansion.entities;
+        
+        // Merge expansion entities with original entities (preserve originals if no relationships found)
+        const entityMap = new Map<string, Entity>();
+        entities.forEach(e => entityMap.set(e.id, e));
+        expansion.entities.forEach(e => entityMap.set(e.id, e));
+        entities = Array.from(entityMap.values());
+        
         allRelationships = expansion.relationships;
       }
 

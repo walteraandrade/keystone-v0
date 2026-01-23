@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import multipart from '@fastify/multipart';
+import cors from '@fastify/cors';
 import { config } from './config/index.js';
 import { logger } from './utils/logger.js';
 import { Neo4jRepository } from './services/graph/Neo4jRepository.js';
@@ -12,6 +13,7 @@ import { HybridQueryService } from './services/query/HybridQueryService.js';
 import { BunSQLiteService } from './services/extraction/BunSQLiteService.js';
 import { CleanupService } from './services/ingestion/CleanupService.js';
 import { CoverageQueryRegistry } from './services/query/CoverageQueryRegistry.js';
+import { AuditorAnalyticsService } from './services/analytics/AuditorAnalyticsService.js';
 import { registerRoutes } from './api/routes.js';
 
 const fastify = Fastify({
@@ -22,6 +24,10 @@ await fastify.register(multipart, {
   limits: {
     fileSize: config.storage.maxUploadSizeMB * 1024 * 1024,
   },
+});
+
+await fastify.register(cors, {
+  origin: true,
 });
 
 logger.info('Initializing services...');
@@ -61,6 +67,8 @@ const cleanupService = new CleanupService(graphRepo);
 
 const coverageRegistry = new CoverageQueryRegistry(graphRepo as any);
 
+const auditorAnalytics = new AuditorAnalyticsService(graphRepo);
+
 logger.info('Services initialized');
 
 if (config.cleanup.enabled) {
@@ -88,7 +96,7 @@ fastify.get('/health', async () => {
   };
 });
 
-await registerRoutes(fastify as any, orchestrator, graphRepo, hybridQuery, cleanupService, coverageRegistry);
+await registerRoutes(fastify as any, orchestrator, graphRepo, hybridQuery, cleanupService, coverageRegistry, auditorAnalytics);
 
 fastify.setErrorHandler((error, request, reply) => {
   logger.error({ error, url: request.url }, 'Request error');

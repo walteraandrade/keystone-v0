@@ -1,0 +1,5 @@
+# Python dependencies for PDF extraction scripts
+# Install with: pip install -r scripts/requirements.txt
+
+pdfplumber>=0.10.0
+

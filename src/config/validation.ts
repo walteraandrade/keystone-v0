@@ -39,6 +39,8 @@ export const configSchema = z.object({
   chunking: z.object({
     maxTokens: z.number().int().positive().default(8192),
     overlapTokens: z.number().int().positive().default(100),
+    similarityThreshold: z.number().min(0).max(1).default(0.5),
+    minSegmentTokens: z.number().int().positive().default(100),
   }),
   extractionLog: z.object({
     enabled: z.boolean().default(true),
