@@ -249,3 +249,5 @@ See [Design Patterns Guide](DESIGN_PATTERNS.md) for details.
 Guiding question: "Can this system explain itself to a regulator without mentioning embeddings or AI?"
 
 
+
+
