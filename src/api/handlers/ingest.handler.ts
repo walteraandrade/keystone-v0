@@ -1,3 +1,4 @@
+import { writeFile, unlink } from 'fs/promises';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { logger } from '../../utils/logger.js';
 import { ValidationError } from '../../utils/errors.js';
@@ -17,7 +18,7 @@ export function createIngestHandler(orchestrator: IngestionOrchestrator) {
 
       const buffer = await data.toBuffer();
       const tempPath = `/tmp/${Date.now()}_${data.filename}`;
-      await require('fs/promises').writeFile(tempPath, buffer);
+      await writeFile(tempPath, new Uint8Array(buffer));
 
       const metadataField = (request.body as any)?.metadata;
       let metadata = {};
@@ -33,7 +34,7 @@ export function createIngestHandler(orchestrator: IngestionOrchestrator) {
 
       const result = await orchestrator.ingest(tempPath, data.filename, metadata);
 
-      await require('fs/promises').unlink(tempPath).catch(() => {});
+      await unlink(tempPath).catch(() => {});
 
       if (result.status === 'failed') {
         return reply.code(500).send(result);

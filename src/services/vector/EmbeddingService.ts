@@ -85,6 +85,9 @@ export class EmbeddingService {
 
   async generateEmbedding(text: string): Promise<number[]> {
     const embeddings = await this.generateEmbeddings([text]);
+    if (embeddings.length === 0) {
+      throw new LLMExtractionError('Failed to generate embedding: empty result');
+    }
     return embeddings[0];
   }
 }

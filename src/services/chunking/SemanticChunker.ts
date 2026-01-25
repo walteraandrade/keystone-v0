@@ -1,7 +1,6 @@
 import { config } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import type { DocumentType } from '../../domain/entities/Document.js';
-import type { EmbeddingService } from '../vector/EmbeddingService.js';
 import { TokenSplitter } from './TokenSplitter.js';
 import type { TokenizedChunk, SegmentationOptions } from './types.js';
 import type { SemanticSegmentationStrategy } from './strategies/SemanticSegmentationStrategy.js';
@@ -16,7 +15,7 @@ export class SemanticChunker {
   private strategies: Map<DocumentType, SemanticSegmentationStrategy>;
   private tokenSplitter: TokenSplitter;
 
-  constructor(embeddingService?: EmbeddingService) {
+  constructor() {
     this.strategies = new Map<DocumentType, SemanticSegmentationStrategy>([
       ['fmea', new FMEASegmentationStrategy()],
       ['ipar', new IPARSegmentationStrategy()],

@@ -1,0 +1,630 @@
+{
+  "metadata": {
+    "timestamp": "2026-01-25T03:38:17.083Z",
+    "scoring": "ground-truth",
+    "vector_store": "neo4j",
+    "total_questions": 20
+  },
+  "summary": {
+    "overall": {
+      "avg_precision": 0.05244660894660894,
+      "avg_recall": 0.15928571428571428,
+      "avg_f1": 0.06954847227888843,
+      "avg_token_coverage": 0.5266666666666667,
+      "avg_latency_ms": 421
+    },
+    "by_category": {
+      "local_similarity": {
+        "avg_precision": 0.04285714285714286,
+        "avg_recall": 0.08571428571428572,
+        "avg_f1": 0.05714285714285714,
+        "avg_token_coverage": 0.78,
+        "avg_latency_ms": 413
+      },
+      "global_understanding": {
+        "avg_precision": 0.016666666666666666,
+        "avg_recall": 0.02857142857142857,
+        "avg_f1": 0.02105263157894737,
+        "avg_token_coverage": 0.4600000000000001,
+        "avg_latency_ms": 346
+      },
+      "multi_hop": {
+        "avg_precision": 0.04444444444444444,
+        "avg_recall": 0.19285714285714287,
+        "avg_f1": 0.07151162790697674,
+        "avg_token_coverage": 0.5466666666666667,
+        "avg_latency_ms": 387
+      },
+      "aggregation": {
+        "avg_precision": 0.10581818181818181,
+        "avg_recall": 0.32999999999999996,
+        "avg_f1": 0.12848677248677248,
+        "avg_token_coverage": 0.32,
+        "avg_latency_ms": 537
+      }
+    }
+  },
+  "results": [
+    {
+      "question_id": 1,
+      "category": "local_similarity",
+      "question": "What controls mitigate fall risks during work at height?",
+      "ground_truth": {
+        "expected_entity_count": 2,
+        "required_keywords": [
+          "arnês",
+          "ancoragem",
+          "plataforma",
+          "altura",
+          "epi"
+        ]
+      },
+      "latency_ms": 811,
+      "result_count": 5,
+      "context": [
+        "Area: Unknown | Activity: Unknown\nHazard: Queda\n\nproteção contra quedas e não atendem a esta norma.\n\nSempre que for necessário o uso de equipamentos de proteção contra quedas, antes do início do\n     ",
+        "Area: Unknown | Activity: Unknown\nHazard: Risco\n\nexceto se isso |  | acarretar riscos maiores, o que deve ser formalmente validado e autorizado |  |  |  |  |  | \npelo diretor da unidade ou |  |  | pel",
+        "Processo: Operação em Pontes Rolantes, talhas e pórticos Revisão: 5 | Unidade: / Área |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\nPerigo: Queda | Classi"
+      ],
+      "scores": {
+        "entityPrecision": 0,
+        "entityRecall": 0,
+        "entityF1": 0,
+        "tokenCoverage": 1,
+        "countAccuracy": null
+      }
+    },
+    {
+      "question_id": 2,
+      "category": "local_similarity",
+      "question": "What does the FPS Altura document say about ladder safety?",
+      "ground_truth": {
+        "expected_entity_count": 0,
+        "required_keywords": [
+          "escada",
+          "portátil",
+          "sapatas",
+          "degrau",
+          "apoio"
+        ]
+      },
+      "latency_ms": 390,
+      "result_count": 5,
+      "context": [
+        "Processo: Operação em Pontes Rolantes, talhas e pórticos Revisão: 5 | Unidade: / Área |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\nPerigo: Queda | Classi",
+        "Processo: Operação em Pontes Rolantes, talhas e pórticos Revisão: 5 | Unidade: / Área |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\nPerigo: Queda | Classi",
+        "Area: Unknown | Activity: Unknown\nHazard: Risco\n\nexceto se isso |  | acarretar riscos maiores, o que deve ser formalmente validado e autorizado |  |  |  |  |  | \npelo diretor da unidade ou |  |  | pel"
+      ],
+      "scores": {
+        "entityPrecision": 0,
+        "entityRecall": 0,
+        "entityF1": 0,
+        "tokenCoverage": 0.6,
+        "countAccuracy": null
+      }
+    },
+    {
+      "question_id": 3,
+      "category": "local_similarity",
+      "question": "Find sections similar to emergency rescue procedures",
+      "ground_truth": {
+        "expected_entity_count": 0,
+        "required_keywords": [
+          "emergência",
+          "resgate",
+          "socorro",
+          "primeiros",
+          "vítima"
+        ]
+      },
+      "latency_ms": 353,
+      "result_count": 5,
+      "context": [
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado | Classificação: Moderado\n\n55 678 9\nAvaliação de Risco: \n \n1-3 = Sério \n4-5 = Alto \n6-7 = Moderado \n8-9 = Aceitável \nAção: \n \n1-",
+        "Processo: Operação em Pontes Rolantes, talhas e pórticos Revisão: 5 | Unidade: / Área |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\nPerigo: Queda | Classi",
+        "Tecnologia  \nSaúde & Segurança  \nPADRÕES \nOPERACIONAIS  \nRef.: AM Safety 014 Issue: \nMay 31, 2011  \nVers.: 1  \nRev.: (-)  \nIdentificação de Perigos e Avaliação de Riscos  \nCirculação Controlada Elabor"
+      ],
+      "scores": {
+        "entityPrecision": 0,
+        "entityRecall": 0,
+        "entityF1": 0,
+        "tokenCoverage": 0.8,
+        "countAccuracy": null
+      }
+    },
+    {
+      "question_id": 4,
+      "category": "local_similarity",
+      "question": "What are the requirements for incident investigation?",
+      "ground_truth": {
+        "expected_entity_count": 0,
+        "required_keywords": [
+          "investigação",
+          "causa",
+          "raiz",
+          "corretiva",
+          "incidente"
+        ]
+      },
+      "latency_ms": 300,
+      "result_count": 5,
+      "context": [
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.4. A organização deve garantir que:                                   \n               a) empregados conduzindo investigações ",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.5. A organização deve:                                                \n               a) documentar as conclusões das investi",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n2.2.1. Coletar dados do incidente. O primeiro passo no processo de investigação é a coleta\n                  dos dados relativo"
+      ],
+      "scores": {
+        "entityPrecision": 0,
+        "entityRecall": 0,
+        "entityF1": 0,
+        "tokenCoverage": 1,
+        "countAccuracy": null
+      }
+    },
+    {
+      "question_id": 5,
+      "category": "local_similarity",
+      "question": "What failure modes are identified in the FMEA document?",
+      "ground_truth": {
+        "expected_entity_count": 7,
+        "required_keywords": [
+          "fm-",
+          "fmea",
+          "modo",
+          "falha",
+          "rpn",
+          "severidade"
+        ]
+      },
+      "latency_ms": 213,
+      "result_count": 5,
+      "context": [
+        ": Diretoria de Trefilação,,,,,,,,,,,CÓDIGO:,DTREF SGI DD 0007,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n\n\n\n: ANÁLISE DOS MODOS E EFEITOS DA FALHA\n: FMEA DE PROC",
+        ": Item | : Etapa | : Modo de Falha Potencial | : Causa(s) Potenciais / Mecanismo de Falha | : Ação Recomendada | : Responsabilidade",
+        ": Diretoria de Trefilação,,,,,,,,,,CÓDIGO:,,DTREF SGI DD 0007\n\n\n\n: OCORRÊNCIA DE CAUSA - PFMEA"
+      ],
+      "scores": {
+        "entityPrecision": 0.21428571428571427,
+        "entityRecall": 0.42857142857142855,
+        "entityF1": 0.2857142857142857,
+        "tokenCoverage": 0.5,
+        "countAccuracy": null
+      }
+    },
+    {
+      "question_id": 6,
+      "category": "global_understanding",
+      "question": "What are the main risk themes across all documents?",
+      "ground_truth": {
+        "expected_entity_count": 7,
+        "required_keywords": [
+          "queda",
+          "elétrico",
+          "prensamento",
+          "esmagamento",
+          "risco"
+        ]
+      },
+      "latency_ms": 326,
+      "result_count": 5,
+      "context": [
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.8. Documentos adaptados / Organização e comunicação sobre mudança  \n \nQuando  uma  ação  é  realizada,  o  ambiente,  o  proc",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.4. Realizar a Avaliação de Risco  \n \nQuando  todos  os  seus  riscos  tiverem  sido  identificados,  você  pode  ter  listado",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.5. Controlar e reduzir os riscos/ Plano de Ação  \n \nTodo risco classificado “inaceitável” deve ser tratado seguindo a hierarq"
+      ],
+      "scores": {
+        "entityPrecision": 0,
+        "entityRecall": 0,
+        "entityF1": 0,
+        "tokenCoverage": 0.4,
+        "countAccuracy": null
+      }
+    },
+    {
+      "question_id": 7,
+      "category": "global_understanding",
+      "question": "Which processes have documented controls?",
+      "ground_truth": {
+        "expected_entity_count": 0,
+        "required_keywords": [
+          "processo",
+          "controle",
+          "trabalho",
+          "altura",
+          "operação"
+        ]
+      },
+      "latency_ms": 316,
+      "result_count": 5,
+      "context": [
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.6. Efetuar Plano de Ação / Acompanhamento regular  \n \nTodas  as  ações  preventivas  e  corretivas  contra  os  riscos  ident",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Elétrico\n\n3.3. Identificar as atividades e os riscos associados \n \nQuando os principais Perigos são identificados, examine se a atividades identi",
+        "Tecnologia  \nSaúde & Segurança  \nPADRÕES \nOPERACIONAIS  \nRef.: AM Safety 014 Issue: \nMay 31, 2011  \nVers.: 1  \nRev.: (-)  \nIdentificação de Perigos e Avaliação de Riscos  \nCirculação Controlada Elabor"
+      ],
+      "scores": {
+        "entityPrecision": 0,
+        "entityRecall": 0,
+        "entityF1": 0,
+        "tokenCoverage": 0.8,
+        "countAccuracy": null
+      }
+    },
+    {
+      "question_id": 8,
+      "category": "global_understanding",
+      "question": "What is the overall safety compliance posture?",
+      "ground_truth": {
+        "expected_entity_count": 0,
+        "required_keywords": [
+          "conformidade",
+          "norma",
+          "requisito",
+          "padrão",
+          "nr-"
+        ]
+      },
+      "latency_ms": 300,
+      "result_count": 5,
+      "context": [
+        "Tecnologia  \nSaúde & Segurança  \nPADRÕES \nOPERACIONAIS  \nRef.: AM Safety 014 Issue: \nMay 31, 2011  \nVers.: 1  \nRev.: (-)  \nIdentificação de Perigos e Avaliação de Riscos  \nCirculação Controlada Elabor",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Corte\n\nCortes Verticais da Equipe – \nEnvolvimento do Empregado \n\n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n",
+        "Saúde & Segurança |  | PADRÕES\nOPERACIONAIS |  | Ref.: AM Safety ST 011\nEmissão: 24.09.2008\nVers.: 1\nRev.: 26.07.2012 | \nINVESTIGAÇÃO DE INCIDENTE |  |  |  |  | \nCirculação\ncontrolada | Elaborado por:"
+      ],
+      "scores": {
+        "entityPrecision": 0,
+        "entityRecall": 0,
+        "entityF1": 0,
+        "tokenCoverage": 0.4,
+        "countAccuracy": null
+      }
+    },
+    {
+      "question_id": 9,
+      "category": "global_understanding",
+      "question": "Which entities appear in multiple documents?",
+      "ground_truth": {
+        "expected_entity_count": 10,
+        "required_keywords": [
+          "documento",
+          "comum",
+          "controle",
+          "procedimento"
+        ]
+      },
+      "latency_ms": 351,
+      "result_count": 5,
+      "context": [
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.8. Documentos adaptados / Organização e comunicação sobre mudança  \n \nQuando  uma  ação  é  realizada,  o  ambiente,  o  proc",
+        "ArcelorMittal - Sabará: EQUIPE GESTORA DO DOCUMENTO\nArcelorMittal - Sabará: ELABORADOR\nArcelorMittal - Sabará: VERIFICADOR\nArcelorMittal - Sabará: VERIFICADOR\nArcelorMittal - Sabará: APROVADOR",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n2.2.2. Descrever seqüência do incidente. A seqüência do incidente é descrita ou recriada\n                  pela organização dos"
+      ],
+      "scores": {
+        "entityPrecision": 0,
+        "entityRecall": 0,
+        "entityF1": 0,
+        "tokenCoverage": 0.5,
+        "countAccuracy": null
+      }
+    },
+    {
+      "question_id": 10,
+      "category": "global_understanding",
+      "question": "What are the common control gaps across documents?",
+      "ground_truth": {
+        "expected_entity_count": 7,
+        "required_keywords": [
+          "lacuna",
+          "ausência",
+          "controle",
+          "mitigação",
+          "falha"
+        ]
+      },
+      "latency_ms": 438,
+      "result_count": 5,
+      "context": [
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.8. Documentos adaptados / Organização e comunicação sobre mudança  \n \nQuando  uma  ação  é  realizada,  o  ambiente,  o  proc",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.6. Efetuar Plano de Ação / Acompanhamento regular  \n \nTodas  as  ações  preventivas  e  corretivas  contra  os  riscos  ident",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.5. Controlar e reduzir os riscos/ Plano de Ação  \n \nTodo risco classificado “inaceitável” deve ser tratado seguindo a hierarq"
+      ],
+      "scores": {
+        "entityPrecision": 0.08333333333333333,
+        "entityRecall": 0.14285714285714285,
+        "entityF1": 0.10526315789473685,
+        "tokenCoverage": 0.2,
+        "countAccuracy": null
+      }
+    },
+    {
+      "question_id": 11,
+      "category": "multi_hop",
+      "question": "Which controls are linked to high-severity failure modes?",
+      "ground_truth": {
+        "expected_entity_count": 0,
+        "required_keywords": [
+          "severidade",
+          "alto",
+          "controle",
+          "crítico",
+          "mitigação"
+        ]
+      },
+      "latency_ms": 485,
+      "result_count": 5,
+      "context": [
+        ": Item | : Etapa | : Modo de Falha Potencial | : Causa(s) Potenciais / Mecanismo de Falha | : Ação Recomendada | : Responsabilidade",
+        ": Diretoria de Trefilação,,,,,,,,,,,CÓDIGO:,DTREF SGI DD 0007,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n\n\n\n: ANÁLISE DOS MODOS E EFEITOS DA FALHA\n: FMEA DE PROC",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.5. Controlar e reduzir os riscos/ Plano de Ação  \n \nTodo risco classificado “inaceitável” deve ser tratado seguindo a hierarq"
+      ],
+      "scores": {
+        "entityPrecision": 0,
+        "entityRecall": 0,
+        "entityF1": 0,
+        "tokenCoverage": 0.2,
+        "countAccuracy": null
+      }
+    },
+    {
+      "question_id": 12,
+      "category": "multi_hop",
+      "question": "Trace the provenance of fall risks across documents",
+      "ground_truth": {
+        "expected_entity_count": 1,
+        "required_keywords": [
+          "queda",
+          "fps altura",
+          "hira",
+          "documento",
+          "origem"
+        ]
+      },
+      "latency_ms": 440,
+      "result_count": 5,
+      "context": [
+        "Area: Unknown | Activity: Unknown\nHazard: Risco\n\ncontra quedas |  | \n7.1 | 31/01/2023 | Eduard BALUCH | Adição da definição de escopo; Adição de requisitos de |  | \n |  |  | atividades | em 4.7 Constr",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.8. Documentos adaptados / Organização e comunicação sobre mudança  \n \nQuando  uma  ação  é  realizada,  o  ambiente,  o  proc",
+        "|  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | \n | Planilha de Identificação de Perigos e Avaliação dos Riscos de Segurança e Saúde Ocupacional - IPAR\nU"
+      ],
+      "scores": {
+        "entityPrecision": 0,
+        "entityRecall": 0,
+        "entityF1": 0,
+        "tokenCoverage": 0.4,
+        "countAccuracy": null
+      }
+    },
+    {
+      "question_id": 13,
+      "category": "multi_hop",
+      "question": "What findings reference controls that mitigate crane operation risks?",
+      "ground_truth": {
+        "expected_entity_count": 0,
+        "required_keywords": [
+          "ponte rolante",
+          "içamento",
+          "carga",
+          "operador",
+          "controle"
+        ]
+      },
+      "latency_ms": 384,
+      "result_count": 5,
+      "context": [
+        "Processo: Operação em Pontes Rolantes, talhas e pórticos Revisão: 5 | Unidade: / Área |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\nPerigo: Queda | Classi",
+        "Processo: Operação em Pontes Rolantes, talhas e pórticos Revisão: 5 | Unidade: / Área |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\nPerigo: Queda | Classi",
+        "Processo: Operação em Pontes Rolantes, talhas e pórticos Revisão: 5 | Unidade: / Área |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\nPerigo: Queda | Classi"
+      ],
+      "scores": {
+        "entityPrecision": 0,
+        "entityRecall": 0,
+        "entityF1": 0,
+        "tokenCoverage": 1,
+        "countAccuracy": null
+      }
+    },
+    {
+      "question_id": 14,
+      "category": "multi_hop",
+      "question": "Which audits identified risks that require process changes?",
+      "ground_truth": {
+        "expected_entity_count": 4,
+        "required_keywords": [
+          "auditoria",
+          "processo",
+          "mudança",
+          "risco",
+          "documento"
+        ]
+      },
+      "latency_ms": 311,
+      "result_count": 5,
+      "context": [
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.7. Melhoria contínua / gestão de mudança  \n \nO  IPAR  deve  ser  continuamente  melhorado  por  revisões  periódicas  definid",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.4. Realizar a Avaliação de Risco  \n \nQuando  todos  os  seus  riscos  tiverem  sido  identificados,  você  pode  ter  listado",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.6. Efetuar Plano de Ação / Acompanhamento regular  \n \nTodas  as  ações  preventivas  e  corretivas  contra  os  riscos  ident"
+      ],
+      "scores": {
+        "entityPrecision": 0.08333333333333333,
+        "entityRecall": 0.25,
+        "entityF1": 0.125,
+        "tokenCoverage": 0.8,
+        "countAccuracy": null
+      }
+    },
+    {
+      "question_id": 15,
+      "category": "multi_hop",
+      "question": "What failure modes share common root causes?",
+      "ground_truth": {
+        "expected_entity_count": 7,
+        "required_keywords": [
+          "causa",
+          "raiz",
+          "humano",
+          "equipamento",
+          "procedimento",
+          "comum"
+        ]
+      },
+      "latency_ms": 313,
+      "result_count": 5,
+      "context": [
+        ": Item | : Etapa | : Modo de Falha Potencial | : Causa(s) Potenciais / Mecanismo de Falha | : Ação Recomendada | : Responsabilidade",
+        ": Diretoria de Trefilação,,,,,,,,,,,CÓDIGO:,DTREF SGI DD 0007,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n\n\n\n: ANÁLISE DOS MODOS E EFEITOS DA FALHA\n: FMEA DE PROC",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n2.2.3.1. Análise de Causa Raiz/Análise de Decisão Crítica. A análise de causa raiz\n                       é um método sistemáti"
+      ],
+      "scores": {
+        "entityPrecision": 0.1388888888888889,
+        "entityRecall": 0.7142857142857143,
+        "entityF1": 0.23255813953488372,
+        "tokenCoverage": 0.3333333333333333,
+        "countAccuracy": null
+      }
+    },
+    {
+      "question_id": 16,
+      "category": "aggregation",
+      "question": "Count risks by severity level across all documents",
+      "ground_truth": {
+        "expected_entity_count": 7,
+        "required_keywords": [
+          "alto",
+          "médio",
+          "baixo",
+          "severidade",
+          "distribuição"
+        ]
+      },
+      "latency_ms": 302,
+      "result_count": 5,
+      "context": [
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.4. Realizar a Avaliação de Risco  \n \nQuando  todos  os  seus  riscos  tiverem  sido  identificados,  você  pode  ter  listado",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Corte\n\nCortes Verticais da Equipe – \nEnvolvimento do Empregado \n\n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.5. Controlar e reduzir os riscos/ Plano de Ação  \n \nTodo risco classificado “inaceitável” deve ser tratado seguindo a hierarq"
+      ],
+      "scores": {
+        "entityPrecision": 0,
+        "entityRecall": 0,
+        "entityF1": 0,
+        "tokenCoverage": 0.4,
+        "countAccuracy": 0.2857142857142857
+      }
+    },
+    {
+      "question_id": 17,
+      "category": "aggregation",
+      "question": "How many failure modes have RPN above 100?",
+      "ground_truth": {
+        "expected_entity_count": 3,
+        "required_keywords": [
+          "rpn",
+          "100",
+          "modo",
+          "falha",
+          "crítico"
+        ]
+      },
+      "latency_ms": 1124,
+      "result_count": 5,
+      "context": [
+        ": 10 | : Endireitar / Polir e Inspecionar Barras | : Funil pré-spinning incompatível com o diâmetro do material | : Estoque de funis abaixo do recomendado | : Nenhuma | : NA | : NA\n: Funil pré-spinnin",
+        ": Diretoria de Trefilação,,,,,,,,,,,CÓDIGO:,DTREF SGI DD 0007,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n\n\n\n: ANÁLISE DOS MODOS E EFEITOS DA FALHA\n: FMEA DE PROC",
+        ": Item | : Etapa | : Modo de Falha Potencial | : Causa(s) Potenciais / Mecanismo de Falha | : Ação Recomendada | : Responsabilidade"
+      ],
+      "scores": {
+        "entityPrecision": 0.12,
+        "entityRecall": 1,
+        "entityF1": 0.21428571428571425,
+        "tokenCoverage": 0.4,
+        "countAccuracy": 0
+      }
+    },
+    {
+      "question_id": 18,
+      "category": "aggregation",
+      "question": "Which document has the most identified entities?",
+      "ground_truth": {
+        "expected_entity_count": 5,
+        "required_keywords": [
+          "documento",
+          "entidade",
+          "maior",
+          "fmea",
+          "identificado"
+        ]
+      },
+      "latency_ms": 613,
+      "result_count": 5,
+      "context": [
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n1 2 3 4 5 \n1 1 2 3 4 5 \n2 2 4 6 8 10 \n3 3 6 9 12 15",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.8. Documentos adaptados / Organização e comunicação sobre mudança  \n \nQuando  uma  ação  é  realizada,  o  ambiente,  o  proc",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.5. A organização deve:                                                \n               a) documentar as conclusões das investi"
+      ],
+      "scores": {
+        "entityPrecision": 0.09090909090909091,
+        "entityRecall": 0.4,
+        "entityF1": 0.14814814814814814,
+        "tokenCoverage": 0.4,
+        "countAccuracy": 0
+      }
+    },
+    {
+      "question_id": 19,
+      "category": "aggregation",
+      "question": "What is the distribution of control types?",
+      "ground_truth": {
+        "expected_entity_count": 10,
+        "required_keywords": [
+          "preventivo",
+          "detectivo",
+          "corretivo",
+          "tipo",
+          "controle"
+        ]
+      },
+      "latency_ms": 319,
+      "result_count": 5,
+      "context": [
+        ": Diretoria de Trefilação,,,,,,,,,,CÓDIGO:,,DTREF SGI DD 0007\n\n\n\n: PROBABILIDADE DE DETECÇÃO POR CONTROLE DE PROCESSO",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.5. Controlar e reduzir os riscos/ Plano de Ação  \n \nTodo risco classificado “inaceitável” deve ser tratado seguindo a hierarq",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Exposição\n\n4 Sinalização / alertas e/ou controles administrativos\n  \n \n\nInclua  treinamento  e  educação,  rotação  de  funções  para  compartilh"
+      ],
+      "scores": {
+        "entityPrecision": 0,
+        "entityRecall": 0,
+        "entityF1": 0,
+        "tokenCoverage": 0.2,
+        "countAccuracy": 0
+      }
+    },
+    {
+      "question_id": 20,
+      "category": "aggregation",
+      "question": "How many entities have extraction confidence above 0.9?",
+      "ground_truth": {
+        "expected_entity_count": 28,
+        "required_keywords": [
+          "confiança",
+          "extração",
+          "0.9",
+          "alta",
+          "qualidade"
+        ]
+      },
+      "latency_ms": 328,
+      "result_count": 5,
+      "context": [
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.6. Se a investigação levar à conclusão de que um fator humano contribuiu para a ocorrência\n\nAnexos:\nAM Safety ST 011 - A1 - G",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.7. A organização deve continuamente melhorar a eficácia do processo de investigação de\n               incidentes. Uma revisão",
+        "Processo: Desconhecido | Unidade: Desconhecida\nPerigo: Não identificado\n\n3.2. Coletar informações sobre Perigos  \n \nA identificação efetiva dos Perigos pode ser alcançada por:  \n \n- Observação do loca"
+      ],
+      "scores": {
+        "entityPrecision": 0.3181818181818182,
+        "entityRecall": 0.25,
+        "entityF1": 0.28,
+        "tokenCoverage": 0.2,
+        "countAccuracy": 0.7857142857142857
+      }
+    }
+  ]
+}

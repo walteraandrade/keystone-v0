@@ -4,7 +4,7 @@ import cors from '@fastify/cors';
 import { config } from './config/index.js';
 import { logger } from './utils/logger.js';
 import { Neo4jRepository } from './services/graph/Neo4jRepository.js';
-import { QdrantVectorStore } from './services/vector/QdrantVectorStore.js';
+import { createVectorStore } from './services/vector/VectorStoreFactory.js';
 import { EmbeddingService } from './services/vector/EmbeddingService.js';
 import { FileSystemStorage } from './services/storage/FileSystemStorage.js';
 import { LLMServiceFactory } from './services/llm/LLMServiceFactory.js';
@@ -35,7 +35,7 @@ logger.info('Initializing services...');
 const graphRepo = new Neo4jRepository();
 await graphRepo.connect();
 
-const vectorStore = new QdrantVectorStore();
+const vectorStore = createVectorStore();
 await vectorStore.connect();
 
 const docStorage = new FileSystemStorage();
@@ -79,17 +79,17 @@ if (config.cleanup.enabled) {
 
 fastify.get('/health', async () => {
   const neo4jOk = await graphRepo.testConnection();
-  const qdrantOk = await vectorStore.testConnection();
+  const vectorOk = await vectorStore.testConnection();
   const llmOk = await llmService.testConnection();
   const sqliteOk = extractionLogger ? extractionLogger.testConnection() : true;
 
   return {
-    status: neo4jOk && qdrantOk && llmOk && sqliteOk ? 'ok' : 'degraded',
+    status: neo4jOk && vectorOk && llmOk && sqliteOk ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
     environment: config.server.nodeEnv,
     services: {
       neo4j: neo4jOk,
-      qdrant: qdrantOk,
+      vectorStore: vectorOk,
       llm: llmOk,
       sqlite: sqliteOk,
     },

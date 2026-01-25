@@ -20,7 +20,8 @@
     "validate:phase6": "bun run scripts/validate/phase6-docs.ts",
     "validate:all": "bun run validate:phase1 && bun run validate:phase2 && bun run validate:phase3 && bun run validate:phase4 && bun run validate:phase5 && bun run validate:phase6",
     "eval-chunking": "bun run src/skills/eval-chunking/cli.ts",
-    "batch-ingest": "bun run src/skills/batch-ingest/cli.ts"
+    "batch-ingest": "bun run src/skills/batch-ingest/cli.ts",
+    "eval:ground-truth": "bun run scripts/run-eval-with-ground-truth.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.71.2",

@@ -4,6 +4,10 @@ import { logger } from '../../utils/logger.js';
 import { GraphPersistenceError } from '../../utils/errors.js';
 import type { VectorStore, VectorDocument, VectorSearchResult } from './VectorStore.interface.js';
 
+/**
+ * @deprecated Use Neo4jVectorStore instead. Qdrant lacks native graph integration,
+ * resulting in missing entity linking for hybrid queries. Will be removed in v1.0.
+ */
 export class QdrantVectorStore implements VectorStore {
   private client: QdrantClient | null = null;
   private collectionName: string;
@@ -133,32 +137,30 @@ export class QdrantVectorStore implements VectorStore {
   async getChunksByGraphNodeIds(graphNodeIds: string[]): Promise<VectorDocument[]> {
     const client = this.getClient();
     try {
-      const chunks: VectorDocument[] = [];
-
-      for (const nodeId of graphNodeIds) {
-        const response = await client.scroll(this.collectionName, {
-          filter: {
-            must: [
-              {
-                key: 'graphNodeId',
-                match: { value: nodeId },
-              },
-            ],
-          },
-          with_payload: true,
-          with_vector: true,
-          limit: 100,
-        });
-
-        for (const point of response.points) {
-          chunks.push({
+      const results = await Promise.all(
+        graphNodeIds.map(async (nodeId) => {
+          const response = await client.scroll(this.collectionName, {
+            filter: {
+              must: [
+                {
+                  key: 'graphNodeId',
+                  match: { value: nodeId },
+                },
+              ],
+            },
+            with_payload: true,
+            with_vector: true,
+            limit: 100,
+          });
+          return response.points.map(point => ({
             id: point.id as string,
             vector: point.vector as number[],
             payload: point.payload as VectorDocument['payload'],
-          });
-        }
-      }
+          }));
+        })
+      );
 
+      const chunks = results.flat();
       logger.debug({ nodeCount: graphNodeIds.length, chunkCount: chunks.length }, 'Retrieved chunks by graph node IDs');
       return chunks;
     } catch (error) {

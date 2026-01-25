@@ -6,7 +6,8 @@ import { config } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import { Neo4jRepository } from '../../services/graph/Neo4jRepository.js';
 import { FileSystemStorage } from '../../services/storage/FileSystemStorage.js';
-import { QdrantVectorStore } from '../../services/vector/QdrantVectorStore.js';
+import { createVectorStore } from '../../services/vector/VectorStoreFactory.js';
+import type { VectorStore } from '../../services/vector/VectorStore.interface.js';
 import { LLMServiceFactory } from '../../services/llm/LLMServiceFactory.js';
 import type { LLMService } from '../../services/llm/LLMService.interface.js';
 import { IngestionOrchestrator } from '../../services/ingestion/IngestionOrchestrator.js';
@@ -27,15 +28,15 @@ const SUPPORTED_EXTENSIONS = new Set(['.pdf', '.xlsx', '.xls', '.txt', '.csv']);
 export class BatchIngestor {
   private graphRepo: Neo4jRepository;
   private docStorage: FileSystemStorage;
-  private vectorStore: QdrantVectorStore;
+  private vectorStore: VectorStore;
   private llmService: LLMService;
   private orchestrator!: IngestionOrchestrator;
   private classifier: DocumentClassifier;
 
   constructor() {
     this.graphRepo = new Neo4jRepository();
-    this.docStorage = new FileSystemStorage(config.storage.documentPath);
-    this.vectorStore = new QdrantVectorStore();
+    this.docStorage = new FileSystemStorage();
+    this.vectorStore = createVectorStore();
     this.llmService = LLMServiceFactory.createLLMService();
     this.classifier = new DocumentClassifier(this.llmService);
   }
@@ -197,6 +198,6 @@ export class BatchIngestor {
 
   private async computeHash(filePath: string): Promise<string> {
     const buffer = await readFile(filePath);
-    return createHash('sha256').update(buffer).digest('hex');
+    return createHash('sha256').update(new Uint8Array(buffer)).digest('hex');
   }
 }

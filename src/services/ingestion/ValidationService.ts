@@ -22,7 +22,7 @@ export class ValidationService {
   }
 
   private validateEntities(entities: ExtractionCandidate[]): void {
-    const validEntityTypes = ['Process', 'Audit', 'Document', 'FailureMode', 'Risk', 'Control', 'Finding', 'Requirement', 'ProcedureStep'];
+    const validEntityTypes = ['Process', 'Audit', 'Document', 'FailureMode', 'Risk', 'Control', 'Finding', 'Requirement', 'ProcedureStep', 'Incident'];
 
     for (const entity of entities) {
       if (!validEntityTypes.includes(entity.entityType)) {
@@ -98,6 +98,12 @@ export class ValidationService {
     }, 'Validating relationships');
 
     for (const rel of relationships) {
+      // Skip Document relationships - they're auto-created by IngestionOrchestrator
+      if (rel.from.startsWith('Document:') || rel.to.startsWith('Document:')) {
+        logger.debug({ relationship: rel }, 'Skipping Document relationship validation');
+        continue;
+      }
+
       if (rel.confidence < this.minConfidence) {
         throw new ValidationError(`Relationship confidence ${rel.confidence} below threshold ${this.minConfidence}`, {
           type: rel.type,

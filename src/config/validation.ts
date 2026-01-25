@@ -15,11 +15,17 @@ export const configSchema = z.object({
     url: z.string().url(),
     collection: z.string().min(1),
   }),
+  vectorStore: z.object({
+    provider: z.enum(['qdrant', 'neo4j']).default('qdrant'),
+  }),
   llm: z.object({
-    provider: z.enum(['openai', 'anthropic', 'openrouter']),
+    provider: z.enum(['openai', 'anthropic', 'openrouter', 'azure']),
     apiKey: z.string().min(1),
     model: z.string().min(1),
     maxTokens: z.number().int().positive().default(4000),
+    azureEndpoint: z.string().optional(),
+    azureDeployment: z.string().optional(),
+    azureApiVersion: z.string().optional(),
   }),
   embedding: z.object({
     endpoint: z.string().url(),

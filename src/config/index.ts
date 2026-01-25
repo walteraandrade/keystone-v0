@@ -26,15 +26,23 @@ function loadConfig(): Config {
       url: process.env.QDRANT_URL || '',
       collection: process.env.QDRANT_COLLECTION || '',
     },
+    vectorStore: {
+      provider: (process.env.VECTOR_STORE_PROVIDER as 'qdrant' | 'neo4j') || 'neo4j',
+    },
     llm: {
-      provider: process.env.LLM_PROVIDER as 'openai' | 'anthropic' | 'openrouter' | undefined,
+      provider: process.env.LLM_PROVIDER as 'openai' | 'anthropic' | 'openrouter' | 'azure' | undefined,
       apiKey: (process.env.LLM_PROVIDER === 'openai'
         ? process.env.OPENAI_API_KEY
         : process.env.LLM_PROVIDER === 'anthropic'
         ? process.env.ANTHROPIC_API_KEY
+        : process.env.LLM_PROVIDER === 'azure'
+        ? process.env.AZURE_OPENAI_API_KEY
         : process.env.OPENROUTER_API_KEY) || '',
       model: process.env.LLM_MODEL || '',
       maxTokens: process.env.LLM_MAX_TOKENS ? parseInt(process.env.LLM_MAX_TOKENS, 10) : undefined,
+      azureEndpoint: process.env.AZURE_OPENAI_ENDPOINT,
+      azureDeployment: process.env.AZURE_OPENAI_LLM_DEPLOYMENT,
+      azureApiVersion: process.env.AZURE_OPENAI_API_VERSION,
     },
     embedding: {
       endpoint: process.env.AZURE_OPENAI_ENDPOINT || '',

@@ -1,3 +1,4 @@
+import { readFile } from 'fs/promises';
 import { generateId } from '../../utils/uuid.js';
 import { logger } from '../../utils/logger.js';
 import { GraphPersistenceError } from '../../utils/errors.js';
@@ -41,7 +42,7 @@ export class IngestionOrchestrator {
     this.validationService = new ValidationService();
     this.deduplicationService = new DeduplicationService(graphRepo);
     this.embeddingService = new EmbeddingService();
-    this.semanticChunker = new SemanticChunker(this.embeddingService);
+    this.semanticChunker = new SemanticChunker();
   }
 
   async ingest(filePath: string, fileName: string, metadata: Record<string, unknown> = {}): Promise<IngestionResult> {
@@ -51,7 +52,7 @@ export class IngestionOrchestrator {
     try {
       logger.info({ fileName, documentId }, 'Starting ingestion');
 
-      const fileBuffer = await require('fs/promises').readFile(filePath);
+      const fileBuffer = await readFile(filePath);
       const stored = await this.docStorage.store(fileName, fileBuffer);
 
       const docEntity: Document = {
@@ -124,10 +125,15 @@ export class IngestionOrchestrator {
           const toId = entityMap.get(relCandidate.to);
 
           if (fromId && toId) {
+            const relType = RelationshipType[relCandidate.type as keyof typeof RelationshipType];
+            if (!relType) {
+              logger.warn({ type: relCandidate.type }, 'Unknown relationship type, skipping');
+              continue;
+            }
             await this.graphRepo.createRelationship(
               fromId,
               toId,
-              RelationshipType[relCandidate.type as keyof typeof RelationshipType],
+              relType,
               relCandidate.confidence,
               relCandidate.sourceReference,
               {
@@ -168,7 +174,9 @@ export class IngestionOrchestrator {
         await this.graphRepo.updateEntity(documentId, { status: 'PROCESSED' });
         logger.info({ documentId, entityCounts, relationshipCount }, 'Graph persistence complete');
       } catch (error) {
-        logger.error({ documentId, error }, 'Graph persistence failed');
+        const errMsg = error instanceof Error ? error.message : String(error);
+        const errStack = error instanceof Error ? error.stack : undefined;
+        logger.error({ documentId, errMsg, errStack }, 'Graph persistence failed');
         throw error;
       }
 
@@ -249,7 +257,9 @@ export class IngestionOrchestrator {
           status: 'FAILED',
           error: error instanceof Error ? error.message : 'Unknown error',
         });
-      } catch {}
+      } catch (updateError) {
+        logger.warn({ documentId, updateError }, 'Failed to update document status to FAILED');
+      }
 
       return {
         documentId,
@@ -300,14 +310,23 @@ export class IngestionOrchestrator {
   private getBusinessKey(entityType: string, properties: Record<string, unknown>): string {
     switch (entityType) {
       case 'Process':
-        return `${properties.name}:${properties.version}`;
+        return `${properties.name}:${properties.version || '1.0'}`;
       case 'FailureMode':
       case 'Requirement':
-        return properties.code as string;
+        return (properties.code as string) || (properties.description as string)?.slice(0, 50) || generateId();
       case 'Audit':
-        return properties.auditDate as string;
+        return (properties.auditDate as string) || generateId();
+      case 'Risk':
+        return (properties.code as string) || (properties.description as string)?.slice(0, 50) || `${properties.level}:${properties.category || 'unknown'}`;
+      case 'Control':
+        return (properties.code as string) || (properties.name as string) || (properties.description as string)?.slice(0, 50) || generateId();
+      case 'Finding':
+        return (properties.code as string) || (properties.title as string) || (properties.description as string)?.slice(0, 50) || generateId();
+      case 'RootCause':
+        return (properties.code as string) || (properties.description as string)?.slice(0, 50) || generateId();
       default:
-        return Math.random().toString(36);
+        logger.warn({ entityType }, 'Unknown entity type, using random key');
+        return generateId();
     }
   }
 }

@@ -498,9 +498,9 @@ export class AuditorAnalyticsService {
 
       return results.map(r => {
         const date = r.riskDate;
-        const year = 'low' in date ? date.year.low : date.year;
-        const month = 'low' in date ? date.month.low : date.month;
-        const day = 'low' in date ? date.day.low : date.day;
+        const year = typeof date.year === 'object' && 'low' in date.year ? date.year.low : date.year;
+        const month = typeof date.month === 'object' && 'low' in date.month ? date.month.low : date.month;
+        const day = typeof date.day === 'object' && 'low' in date.day ? date.day.low : date.day;
         const count = typeof r.count === 'object' && 'toNumber' in r.count ? r.count.toNumber() : r.count;
         
         return {
@@ -524,9 +524,9 @@ export class AuditorAnalyticsService {
 
       return results.map(r => {
         const date = r.resolvedDate;
-        const year = 'low' in date ? date.year.low : date.year;
-        const month = 'low' in date ? date.month.low : date.month;
-        const day = 'low' in date ? date.day.low : date.day;
+        const year = typeof date.year === 'object' && 'low' in date.year ? date.year.low : date.year;
+        const month = typeof date.month === 'object' && 'low' in date.month ? date.month.low : date.month;
+        const day = typeof date.day === 'object' && 'low' in date.day ? date.day.low : date.day;
         const count = typeof r.count === 'object' && 'toNumber' in r.count ? r.count.toNumber() : r.count;
         
         return {
@@ -697,7 +697,7 @@ export class AuditorAnalyticsService {
         fileName: p.fileName,
         documentType: p.documentType,
         extractedBy: p.extractedBy,
-        extractedAt: typeof p.extractedAt === 'string' ? p.extractedAt : p.extractedAt.toString(),
+        extractedAt: p.extractedAt,
         confidence: p.confidence,
         section: p.section,
         pageNumber: p.pageNumber,

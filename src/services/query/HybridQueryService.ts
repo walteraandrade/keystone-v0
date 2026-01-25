@@ -3,6 +3,7 @@ import { GraphPersistenceError } from '../../utils/errors.js';
 import type { GraphRepository } from '../graph/GraphRepository.interface.js';
 import type { VectorStore, VectorDocument } from '../vector/VectorStore.interface.js';
 import type { EmbeddingService } from '../vector/EmbeddingService.js';
+import type { Entity } from '../../domain/entities/index.js';
 import type { Relationship } from '../../domain/relationships/types.js';
 import type {
   SemanticSearchParams,
@@ -14,6 +15,16 @@ import type {
   GraphPatternParams,
   GraphPatternResult,
 } from './types.js';
+
+interface ChunkPayload {
+  graphNodeId: string;
+  documentId: string;
+  chunkText: string;
+  semanticType?: string;
+  context?: string;
+  tokens?: number;
+  isOversized?: boolean;
+}
 
 export class HybridQueryService {
   constructor(
@@ -51,8 +62,9 @@ export class HybridQueryService {
       const entities = await this.graphRepo.getEntitiesByIds(graphNodeIds);
 
       const chunks = await Promise.all(
-        vectorResults.map(async (vr, idx) => {
-          const entity = entities.find(e => e.id === vr.payload.graphNodeId);
+        vectorResults.map(async (vr) => {
+          const payload = vr.payload as ChunkPayload;
+          const entity = entities.find(e => e.id === payload.graphNodeId);
           let relatedEntities = undefined;
 
           if (entity && expandDepth > 0) {
@@ -62,10 +74,10 @@ export class HybridQueryService {
 
           return {
             chunkId: vr.id,
-            text: vr.payload.chunkText,
+            text: payload.chunkText,
             score: vr.score,
-            semanticType: (vr.payload as any).semanticType || 'unknown',
-            context: (vr.payload as any).context || '',
+            semanticType: payload.semanticType || 'unknown',
+            context: payload.context || '',
             entity,
             relatedEntities,
           };
@@ -107,14 +119,17 @@ export class HybridQueryService {
 
       const vectorChunks = await this.vectorStore.getChunksByGraphNodeIds([entityId]);
 
-      const chunks = vectorChunks.slice(0, maxChunks).map(vc => ({
-        chunkId: vc.id,
-        text: vc.payload.chunkText,
-        context: (vc.payload as any).context || '',
-        sourceReference: {
-          section: (vc.payload as any).context || 'Unknown',
-        },
-      }));
+      const chunks = vectorChunks.slice(0, maxChunks).map(vc => {
+        const payload = vc.payload as ChunkPayload;
+        return {
+          chunkId: vc.id,
+          text: payload.chunkText,
+          context: payload.context || '',
+          sourceReference: {
+            section: payload.context || 'Unknown',
+          },
+        };
+      });
 
       let relationships = undefined;
       if (includeRelationships) {
@@ -152,19 +167,20 @@ export class HybridQueryService {
 
       await this.vectorStore.scrollAll((chunk) => {
         totalChunks++;
-        const tokens = (chunk.payload as any).tokens || 0;
+        const payload = chunk.payload as ChunkPayload;
+        const tokens = payload.tokens || 0;
         totalTokens += tokens;
 
         let groupKey: string;
         switch (groupBy) {
           case 'semanticType':
-            groupKey = (chunk.payload as any).semanticType || 'unknown';
+            groupKey = payload.semanticType || 'unknown';
             break;
           case 'context':
-            groupKey = (chunk.payload as any).context || 'unknown';
+            groupKey = payload.context || 'unknown';
             break;
           case 'documentId':
-            groupKey = chunk.payload.documentId;
+            groupKey = payload.documentId;
             break;
         }
 
@@ -174,7 +190,7 @@ export class HybridQueryService {
 
         byGroup[groupKey].count++;
         byGroup[groupKey].avgTokens = (byGroup[groupKey].avgTokens * (byGroup[groupKey].count - 1) + tokens) / byGroup[groupKey].count;
-        if ((chunk.payload as any).isOversized) {
+        if (payload.isOversized) {
           byGroup[groupKey].oversizedCount++;
         }
       });
@@ -237,7 +253,6 @@ export class HybridQueryService {
 
         const expansion = await this.graphRepo.expandRelationships(entityIds, relationshipTypes);
         
-        // Merge expansion entities with original entities (preserve originals if no relationships found)
         const entityMap = new Map<string, Entity>();
         entities.forEach(e => entityMap.set(e.id, e));
         expansion.entities.forEach(e => entityMap.set(e.id, e));
@@ -251,11 +266,14 @@ export class HybridQueryService {
         const entityIds = entities.map(e => e.id);
         const vectorChunks = await this.vectorStore.getChunksByGraphNodeIds(entityIds);
 
-        chunks = vectorChunks.map(vc => ({
-          entityId: vc.payload.graphNodeId,
-          chunkText: vc.payload.chunkText,
-          context: (vc.payload as any).context || '',
-        }));
+        chunks = vectorChunks.map(vc => {
+          const payload = vc.payload as ChunkPayload;
+          return {
+            entityId: payload.graphNodeId,
+            chunkText: payload.chunkText,
+            context: payload.context || '',
+          };
+        });
       }
 
       return {

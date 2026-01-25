@@ -52,6 +52,7 @@ export class Neo4jRepository implements GraphRepository {
 
   async createEntity<T extends Entity>(entity: T): Promise<string> {
     const session = this.getSession();
+    const tx = session.beginTransaction();
     try {
       const { provenance, ...entityProps } = entity;
 
@@ -59,7 +60,7 @@ export class Neo4jRepository implements GraphRepository {
         CREATE (e:${entity.type}:Entity $props)
         RETURN e.id as id
       `;
-      const result = await session.run(query, { props: entityProps });
+      const result = await tx.run(query, { props: entityProps });
       const id = result.records[0]?.get('id');
       if (!id) {
         throw new GraphPersistenceError('Failed to create entity');
@@ -68,7 +69,7 @@ export class Neo4jRepository implements GraphRepository {
       for (const prov of provenance || []) {
         const extractionId = generateId('ext');
 
-        await session.run(`
+        await tx.run(`
           CREATE (ex:Extraction {
             id: $extractionId,
             sourceDocumentId: $sourceDocumentId,
@@ -92,24 +93,28 @@ export class Neo4jRepository implements GraphRepository {
           lineRangeEnd: prov.sourceReference.lineRange?.[1] ?? null,
         });
 
-        await session.run(`
+        await tx.run(`
           MATCH (e:Entity {id: $entityId})
           MATCH (ex:Extraction {id: $extractionId})
           CREATE (e)-[:EXTRACTED_FROM]->(ex)
         `, { entityId: id, extractionId });
 
-        await session.run(`
+        await tx.run(`
           MATCH (ex:Extraction {id: $extractionId})
           MATCH (doc:Document {id: $sourceDocumentId})
           CREATE (ex)-[:SOURCED_FROM]->(doc)
         `, { extractionId, sourceDocumentId: prov.sourceDocumentId });
       }
 
+      await tx.commit();
       logger.debug({ entityType: entity.type, id }, 'Created entity with extractions');
       return id;
     } catch (error) {
-      logger.error({ entity, error }, 'Failed to create entity');
-      throw new GraphPersistenceError('Entity creation failed', error);
+      await tx.rollback();
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const errCode = (error as any)?.code;
+      logger.error({ entityType: entity.type, entityId: entity.id, errMsg, errCode }, 'Failed to create entity');
+      throw new GraphPersistenceError(`Entity creation failed: ${errMsg}`, error);
     } finally {
       await session.close();
     }
@@ -281,11 +286,12 @@ export class Neo4jRepository implements GraphRepository {
     properties?: Record<string, unknown>
   ): Promise<void> {
     const session = this.getSession();
+    const tx = session.beginTransaction();
     try {
       const sr = sourceReference as SourceReference;
       const extractionId = generateId('ext');
 
-      await session.run(`
+      await tx.run(`
         CREATE (ex:Extraction {
           id: $extractionId,
           sourceDocumentId: $sourceDocumentId,
@@ -309,7 +315,7 @@ export class Neo4jRepository implements GraphRepository {
         lineRangeEnd: sr.lineRange?.[1] ?? null,
       });
 
-      await session.run(`
+      await tx.run(`
         MATCH (ex:Extraction {id: $extractionId})
         MATCH (doc:Document {id: $sourceDocumentId})
         CREATE (ex)-[:SOURCED_FROM]->(doc)
@@ -327,12 +333,14 @@ export class Neo4jRepository implements GraphRepository {
         CREATE (a)-[r:${type} $props]->(b)
         RETURN r
       `;
-      const result = await session.run(query, { from, to, props: relProps });
+      const result = await tx.run(query, { from, to, props: relProps });
       if (result.records.length === 0) {
         throw new GraphPersistenceError('Failed to create relationship');
       }
+      await tx.commit();
       logger.debug({ from, to, type }, 'Created relationship');
     } catch (error) {
+      await tx.rollback();
       logger.error({ from, to, type, error }, 'Failed to create relationship');
       throw new GraphPersistenceError('Relationship creation failed', error);
     } finally {
@@ -352,28 +360,24 @@ export class Neo4jRepository implements GraphRepository {
 
     const session = this.getSession();
     try {
-      for (let i = 0; i < relationships.length; i++) {
-        const rel = relationships[i];
-        logger.debug({
-          index: i + 1,
-          total: relationships.length,
-          from: rel.from,
-          to: rel.to,
-          type: rel.type
-        }, 'Creating simple relationship');
+      const byType: Record<string, typeof relationships> = {};
+      for (const rel of relationships) {
+        const key = String(rel.type);
+        if (!byType[key]) byType[key] = [];
+        byType[key].push(rel);
+      }
 
+      for (const [relType, rels] of Object.entries(byType)) {
         const query = `
-          MATCH (from {id: $from})
-          MATCH (to {id: $to})
-          CREATE (from)-[r:${rel.type} {confidence: $confidence}]->(to)
+          UNWIND $rels AS rel
+          MATCH (from {id: rel.from})
+          MATCH (to {id: rel.to})
+          CREATE (from)-[r:${relType} {confidence: rel.confidence}]->(to)
         `;
         await session.run(query, {
-          from: rel.from,
-          to: rel.to,
-          confidence: rel.confidence,
+          rels: rels.map(r => ({ from: r.from, to: r.to, confidence: r.confidence })),
         });
-
-        logger.debug({ index: i + 1 }, 'Simple relationship created');
+        logger.debug({ type: relType, count: rels.length }, 'Batch created simple relationships');
       }
 
       logger.debug({ count: relationships.length }, 'All simple relationships created');
@@ -768,13 +772,14 @@ export class Neo4jRepository implements GraphRepository {
       return result.records.map(record => {
         const obj: Record<string, unknown> = {};
         record.keys.forEach(key => {
-          const value = record.get(key);
+          const keyStr = String(key);
+          const value = record.get(keyStr);
           if (neo4j.isInt(value)) {
-            obj[key] = value.toNumber();
+            obj[keyStr] = value.toNumber();
           } else if (value && typeof value === 'object' && 'properties' in value) {
-            obj[key] = (value as any).properties;
+            obj[keyStr] = (value as any).properties;
           } else {
-            obj[key] = value;
+            obj[keyStr] = value;
           }
         });
         return obj as T;

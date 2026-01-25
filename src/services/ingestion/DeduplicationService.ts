@@ -4,6 +4,7 @@ import type { GraphRepository } from '../graph/GraphRepository.interface.js';
 import type { Entity } from '../../domain/entities/index.js';
 import type { ExtractionCandidate } from '../../types/extraction.types.js';
 import type { Provenance } from '../../domain/entities/base/Provenance.js';
+import { RelationshipType } from '../../domain/relationships/types.js';
 
 export interface DeduplicationResult {
   isNew: boolean;
@@ -46,7 +47,7 @@ export class DeduplicationService {
     await this.graphRepo.createRelationship(
       newVersionId,
       existingId,
-      'SUPERSEDES' as any,
+      RelationshipType.SUPERSEDES,
       1.0,
       candidate.sourceReference,
       {

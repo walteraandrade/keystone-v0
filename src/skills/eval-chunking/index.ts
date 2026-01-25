@@ -1,4 +1,5 @@
-import { QdrantVectorStore } from '../../services/vector/QdrantVectorStore.js';
+import { createVectorStore } from '../../services/vector/VectorStoreFactory.js';
+import type { VectorStore } from '../../services/vector/VectorStore.interface.js';
 import { logger } from '../../utils/logger.js';
 import { EvalChunkingDB } from './schema.js';
 import { GoldenQuestionGenerator } from './generators/GoldenQuestionGenerator.js';
@@ -33,7 +34,7 @@ export interface EvalOptions {
 
 export class ChunkingEvaluator {
   private db: EvalChunkingDB;
-  private vectorStore: QdrantVectorStore;
+  private vectorStore: VectorStore;
   private questionGenerator: GoldenQuestionGenerator;
   private retrievalEvaluator: RetrievalEvaluator;
   private intrinsicEvaluator: IntrinsicEvaluator;
@@ -45,7 +46,7 @@ export class ChunkingEvaluator {
 
   constructor(dbPath: string = './data/eval-chunking.db', config?: Partial<EvalConfig>) {
     this.db = new EvalChunkingDB(dbPath);
-    this.vectorStore = new QdrantVectorStore();
+    this.vectorStore = createVectorStore();
     this.questionGenerator = new GoldenQuestionGenerator();
     this.retrievalEvaluator = new RetrievalEvaluator(this.vectorStore);
     this.intrinsicEvaluator = new IntrinsicEvaluator();
